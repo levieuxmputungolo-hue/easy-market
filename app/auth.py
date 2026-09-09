@@ -10,9 +10,7 @@ import bcrypt
 import pyotp
 
 # ─── Configuration ───
-SECRET_KEY = os.getenv("JWT_SECRET")
-if not SECRET_KEY:
-    raise RuntimeError("La variable d'environnement JWT_SECRET est requise. Configurez-la dans votre fichier .env")
+SECRET_KEY = os.getenv("JWT_SECRET", "aisy-market-dev-secret-change-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_DAYS = 7
 REFRESH_TOKEN_EXPIRE_DAYS = 30

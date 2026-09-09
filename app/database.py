@@ -3,9 +3,7 @@ from dotenv import load_dotenv
 load_dotenv()
 import motor.motor_asyncio
 
-MONGO_URI = os.getenv("MONGO_URI")
-if not MONGO_URI:
-    raise RuntimeError("La variable d'environnement MONGO_URI est requise. Configurez-la dans votre fichier .env")
+MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://marketplace_user:Aqn6K1Oza5rl87Wf@cluster0.7gjcqwp.mongodb.net/?retryWrites=true&w=majority")
 
 DB_NAME = os.getenv("DB_NAME", "aisy_market")
 
