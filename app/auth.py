@@ -1,6 +1,8 @@
 import os, hashlib
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+from dotenv import load_dotenv
+load_dotenv()
 from jose import jwt, JWTError
 from fastapi import Request, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
