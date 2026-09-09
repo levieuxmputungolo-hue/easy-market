@@ -1,8 +1,6 @@
 import os, hashlib
 from datetime import datetime, timedelta, timezone
 from typing import Optional
-from dotenv import load_dotenv
-load_dotenv()
 from jose import jwt, JWTError
 from fastapi import Request, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -10,7 +8,9 @@ import bcrypt
 import pyotp
 
 # ─── Configuration ───
-SECRET_KEY = os.getenv("JWT_SECRET", "aisy-market-dev-secret-change-in-production")
+SECRET_KEY = os.getenv("JWT_SECRET")
+if not SECRET_KEY:
+    raise RuntimeError("JWT_SECRET manquant. Configurez-le dans les variables d'environnement Render.")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_DAYS = 7
 REFRESH_TOKEN_EXPIRE_DAYS = 30
