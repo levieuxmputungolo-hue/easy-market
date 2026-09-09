@@ -1,0 +1,91 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Stats globaux
+    match /stats/{doc} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Utilisateurs
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Vendeurs
+    match /vendeurs/{vendorId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == vendorId;
+    }
+
+    // Produits
+    match /products/{productId} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && request.resource.data.vendeur_id == request.auth.uid;
+      allow update: if request.auth != null
+        && resource.data.vendeur_id == request.auth.uid;
+      allow delete: if request.auth != null
+        && (resource.data.vendeur_id == request.auth.uid || resource.data.seller_id == request.auth.uid);
+    }
+
+    // Commandes (WhatsApp notifications)
+    match /orders/{orderId} {
+      allow read: if request.auth != null
+        && (resource.data.user_id == request.auth.uid || resource.data.seller_id == request.auth.uid);
+      allow create: if request.auth != null;
+      allow update: if request.auth != null
+        && (resource.data.user_id == request.auth.uid || resource.data.seller_id == request.auth.uid);
+    }
+
+    // Notifications in-app
+    match /notifications/{userId}/items/{itemId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Compteurs de notifications
+    match /notification_counts/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Abonnements vendeurs (followers)
+    match /followers/{followerId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+
+    // Tokens FCM
+    match /fcm_tokens/{token} {
+      allow read, write: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+
+    // Demandes clients
+    match /demands/{demandId} {
+      allow read, write: if request.auth != null && resource.data.user_id == request.auth.uid;
+    }
+
+    // Chats
+    match /chats/{chatId} {
+      allow read: if request.auth != null
+        && request.auth.uid in resource.data.participants;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null
+        && request.auth.uid in resource.data.participants;
+
+      match /messages/{messageId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null;
+        allow update: if request.auth != null;
+      }
+    }
+
+    // Publicités
+    match /publicites/{pubId} {
+      allow read: if true;
+      allow create: if request.auth != null && request.auth.uid == resource.data.vendor_id;
+      allow update: if request.auth != null && resource.data.vendor_id == request.auth.uid;
+      allow delete: if request.auth != null && resource.data.vendor_id == request.auth.uid;
+    }
+  }
+}
