@@ -5,6 +5,8 @@ from fastapi.responses import JSONResponse
 from app.database import init_db, db
 from app.auth import decode_token
 from app.routers import products, users, orders, sellers, vendeurs, payments, chats, publicites, demands, notifications
+from bson import ObjectId
+from datetime import datetime
 import os
 import socketio
 
@@ -145,7 +147,7 @@ async def chat_join(sid, data):
     user_id = session.get("user_id", "")
 
     # Verify user is participant
-    chat = await db.chats.find_one({"_id": __import__("bson").ObjectId(chat_id)})
+    chat = await db.chats.find_one({"_id": ObjectId(chat_id)})
     if not chat:
         return
 
@@ -178,14 +180,13 @@ async def chat_send_message(sid, data):
     if not chat_id or not text:
         return
 
-    chat = await db.chats.find_one({"_id": __import__("bson").ObjectId(chat_id)})
+    chat = await db.chats.find_one({"_id": ObjectId(chat_id)})
     if not chat:
         return
 
     if user_id not in (chat.get("buyer_id"), chat.get("seller_id"), *chat.get("participants", [])):
         return
 
-    from datetime import datetime
     now = datetime.utcnow()
     sender_role = "buyer" if user_id == chat.get("buyer_id") else "seller"
 
@@ -208,7 +209,7 @@ async def chat_send_message(sid, data):
     # Update chat
     unread_field = "unread_seller" if sender_role == "buyer" else "unread_buyer"
     await db.chats.update_one(
-        {"_id": __import__("bson").ObjectId(chat_id)},
+        {"_id": ObjectId(chat_id)},
         {
             "$set": {
                 "lastMessage": text[:200] if text else f"[{msg_type}]",
@@ -270,7 +271,7 @@ async def chat_mark_read(sid, data):
     if not chat_id:
         return
 
-    chat = await db.chats.find_one({"_id": __import__("bson").ObjectId(chat_id)})
+    chat = await db.chats.find_one({"_id": ObjectId(chat_id)})
     if not chat:
         return
 
@@ -282,7 +283,7 @@ async def chat_mark_read(sid, data):
         {"$set": {"read": True}},
     )
     await db.chats.update_one(
-        {"_id": __import__("bson").ObjectId(chat_id)},
+        {"_id": ObjectId(chat_id)},
         {"$set": {unread_field: 0}},
     )
 

@@ -1,10 +1,23 @@
 import os
 import motor.motor_asyncio
 from datetime import datetime
+from dotenv import load_dotenv
+from urllib.parse import quote_plus
 
-MONGO_URI = os.getenv("MONGO_URI")
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))
+
+MONGO_URI = os.getenv("MONGO_URI", "")
 if not MONGO_URI:
     raise RuntimeError("MONGO_URI manquant.")
+
+# Fix: encode special chars in password if needed
+if "@" in MONGO_URI:
+    prefix, rest = MONGO_URI.split("://", 1)
+    if "@" in rest:
+        userinfo, host_part = rest.rsplit("@", 1)
+        if ":" in userinfo:
+            user, pwd = userinfo.split(":", 1)
+            MONGO_URI = f"{prefix}://{quote_plus(user)}:{quote_plus(pwd)}@{host_part}"
 
 DB_NAME = os.getenv("DB_NAME", "aisy_market")
 
