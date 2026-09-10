@@ -1,0 +1,8 @@
+node_modules/
+uploads/
+.env
+.firebase/
+__pycache__/
+*.pyc
+vite_error.txt
+vite_output.txt
