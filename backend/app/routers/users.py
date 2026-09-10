@@ -329,3 +329,38 @@ async def get_me(current_user: dict = Depends(get_current_user)):
     user.pop("mfa_secret", None)
     user.pop("mfa_pending_secret", None)
     return user
+
+
+# ─── Update profile ───
+@router.put("/api/users/me")
+async def update_me(data: dict, current_user: dict = Depends(get_current_user)):
+    uid = current_user["sub"]
+    allowed = ["name", "phone", "whatsapp", "notify_whatsapp", "photo", "city", "commune"]
+    updates = {}
+    for field in allowed:
+        if field in data:
+            updates[field] = data[field]
+
+    if updates:
+        await db.users.update_one({"_id": ObjectId(uid)}, {"$set": updates})
+
+    return {"message": "Profil mis à jour"}
+
+
+# ─── Get user by ID (for chat context) ───
+@router.get("/api/users/{user_id}")
+async def get_user_by_id(user_id: str, current_user: dict = Depends(get_current_user)):
+    if not ObjectId.is_valid(user_id):
+        raise HTTPException(400, "ID invalide")
+
+    user = await db.users.find_one({"_id": ObjectId(user_id)})
+    if not user:
+        raise HTTPException(404, "Utilisateur non trouvé")
+
+    return {
+        "_id": str(user["_id"]),
+        "name": user.get("name", ""),
+        "email": user.get("email", ""),
+        "phone": user.get("phone", ""),
+        "photo": user.get("photo", ""),
+    }
