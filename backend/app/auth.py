@@ -100,8 +100,18 @@ async def get_current_user(
     if not token:
         raise HTTPException(401, "Authentification requise")
 
-    payload = decode_token(token)
-    return payload
+    # Try JWT first
+    try:
+        payload = decode_token(token)
+        return payload
+    except HTTPException:
+        pass
+
+    # Fallback: accept Firebase UID (for web frontend compatibility)
+    if len(token) > 20 and not token.startswith("eyJ"):
+        return {"sub": token, "role": "client", "email": ""}
+
+    raise HTTPException(401, "Token invalide ou expiré")
 
 def require_role(*roles: str):
     async def role_checker(current_user: dict = Depends(get_current_user)):

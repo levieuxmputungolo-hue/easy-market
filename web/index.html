@@ -2632,8 +2632,13 @@ async function fbSetDoc(collection, id, data) {
 // ─── API ───
 async function apiFetch(path, opts = {}) {
   try {
+    const token = localStorage.getItem('jwt_token') || '';
     const res = await fetch(API + path, {
-      headers: { 'Content-Type': 'application/json', ...opts.headers },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': 'Bearer ' + token } : {}),
+        ...opts.headers,
+      },
       ...opts,
     });
     if (!res.ok) {
@@ -5619,6 +5624,13 @@ async function login() {
       user = { _id:cred.user.uid, name:cred.user.displayName||email, email, role:'client' };
     }
     localStorage.setItem('aisy_user', JSON.stringify(user));
+    try {
+      const jwtRes = await fetch(API + '/api/users/login', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ email, password: pass }),
+      });
+      if (jwtRes.ok) { const jd = await jwtRes.json(); if (jd.access_token) localStorage.setItem('jwt_token', jd.access_token); }
+    } catch(_){}
     toast('✅ Connecté !'); renderAuth();
   } catch(e) {
     if (email === 'demo@aisy.com' && pass === 'demo123') {
@@ -6120,6 +6132,13 @@ async function loginVendeur() {
       }
     }
     localStorage.setItem('aisy_vendeur', JSON.stringify(vendeurUser));
+    try {
+      const jwtRes = await fetch(API + '/api/vendeurs/login', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ email, password: pass }),
+      });
+      if (jwtRes.ok) { const jd = await jwtRes.json(); if (jd.access_token) localStorage.setItem('jwt_token', jd.access_token); }
+    } catch(_){}
     toast('✅ Connecté !');
     renderAuth();
   } catch(e) {
