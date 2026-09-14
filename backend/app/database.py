@@ -2,6 +2,7 @@ import os
 import motor.motor_asyncio
 from datetime import datetime
 from dotenv import load_dotenv
+from urllib.parse import quote_plus, urlparse, urlunparse
 
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))
 
@@ -13,8 +14,19 @@ db = None
 
 if MONGO_URI:
     try:
+        parsed = urlparse(MONGO_URI)
+        if parsed.username and parsed.password:
+            user = quote_plus(parsed.username)
+            pwd = quote_plus(parsed.password)
+            netloc = f"{user}:{pwd}"
+            if parsed.port:
+                netloc += f":{parsed.port}"
+            netloc += f"@{parsed.hostname}"
+            clean_uri = urlunparse(parsed._replace(netloc=netloc))
+        else:
+            clean_uri = MONGO_URI
         client = motor.motor_asyncio.AsyncIOMotorClient(
-            MONGO_URI,
+            clean_uri,
             serverSelectionTimeoutMS=5000,
         )
         db = client[DB_NAME]
