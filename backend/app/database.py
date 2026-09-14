@@ -23,7 +23,7 @@ if MONGO_URI:
 
 
 async def init_db():
-    if not db:
+    if db is None:
         print("[WARNING] MongoDB non disponible. Backend demarre sans base de donnees.")
         return None
 
