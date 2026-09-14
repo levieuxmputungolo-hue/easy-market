@@ -2,38 +2,36 @@ import os
 import motor.motor_asyncio
 from datetime import datetime
 from dotenv import load_dotenv
-from urllib.parse import quote_plus
 
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))
 
 MONGO_URI = os.getenv("MONGO_URI", "")
-
-if not MONGO_URI:
-    raise RuntimeError("MONGO_URI manquant. Configurez-le dans les variables d'environnement Render.")
-
-# Fix: encode special chars in password if needed
-if MONGO_URI and "@" in MONGO_URI:
-    prefix, rest = MONGO_URI.split("://", 1)
-    if "@" in rest:
-        userinfo, host_part = rest.rsplit("@", 1)
-        if ":" in userinfo:
-            user, pwd = userinfo.split(":", 1)
-            MONGO_URI = f"{prefix}://{quote_plus(user)}:{quote_plus(pwd)}@{host_part}"
-
 DB_NAME = os.getenv("DB_NAME", "aisy_market")
 
-# MongoDB is mandatory for backend
-client = motor.motor_asyncio.AsyncIOMotorClient(
-    MONGO_URI,
-    maxPoolSize=500,
-    minPoolSize=50,
-    maxIdleTimeMS=30000,
-)
-db = client[DB_NAME]
+client = None
+db = None
+
+if MONGO_URI:
+    try:
+        client = motor.motor_asyncio.AsyncIOMotorClient(
+            MONGO_URI,
+            serverSelectionTimeoutMS=5000,
+        )
+        db = client[DB_NAME]
+    except Exception as e:
+        print(f"[WARNING] MongoDB connection failed: {e}")
 
 
 async def init_db():
-    collections = await db.list_collection_names()
+    if not db:
+        print("[WARNING] MongoDB non disponible. Backend demarre sans base de donnees.")
+        return None
+
+    try:
+        collections = await db.list_collection_names()
+    except Exception as e:
+        print(f"[WARNING] MongoDB ping failed: {e}. Backend demarre sans base de donnees.")
+        return None
 
     # ── Products ──
     if "products" not in collections:
