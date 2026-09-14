@@ -12,6 +12,7 @@ import 'package:intl/intl.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'screens/alibaba_chat_screen.dart';
+import 'services/api_service.dart';
 
 // FCM background handler
 @pragma('vm:entry-point')
@@ -1118,13 +1119,47 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   Future<void> _confirmOrder(String userId, String productId, double price, String sellerId, String sellerName, String method, BuildContext ctx) async {
     Navigator.pop(ctx);
     try {
-      await FirebaseFirestore.instance.collection('orders').add({
-        'user_id': userId, 'product_id': productId, 'price': price,
-        'seller_id': sellerId, 'seller_name': sellerName, 'payment_method': method,
-        'status': 'en_attente', 'created_at': FieldValue.serverTimestamp(),
-      });
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Commande passée via $method !'), backgroundColor: Colors.green));
-    } catch (e) { debugPrint('Order error: $e'); }
+      final phoneController = TextEditingController();
+      final phone = await showDialog<String>(
+        context: ctx,
+        builder: (ctx2) => AlertDialog(
+          title: Text('Numero $method'),
+          content: TextField(
+            controller: phoneController,
+            keyboardType: TextInputType.phone,
+            decoration: InputDecoration(hintText: 'Ex: +243...'),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx2), child: Text('Annuler')),
+            TextButton(onPressed: () => Navigator.pop(ctx2, phoneController.text), child: Text('Payer')),
+          ],
+        ),
+      );
+      if (phone == null || phone.isEmpty) return;
+
+      final orderId = 'ORD-${DateTime.now().millisecondsSinceEpoch}';
+      final result = await ApiService.initPayment(
+        orderId: orderId,
+        amount: price,
+        phone: phone,
+        operator: method,
+        userId: userId,
+      );
+
+      if (result['success'] == true) {
+        await FirebaseFirestore.instance.collection('orders').add({
+          'order_id': orderId, 'user_id': userId, 'product_id': productId, 'price': price,
+          'seller_id': sellerId, 'seller_name': sellerName, 'payment_method': method,
+          'status': 'paye', 'created_at': FieldValue.serverTimestamp(),
+        });
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Paiement effectue via $method !'), backgroundColor: Colors.green));
+      } else {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur paiement: ${result['message'] ?? 'Inconnu'}'), backgroundColor: Colors.red));
+      }
+    } catch (e) {
+      debugPrint('Order error: $e');
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red));
+    }
   }
 
   @override

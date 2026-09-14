@@ -4,7 +4,7 @@ import '../models/product.dart';
 import '../models/user.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://10.0.2.2:8000/api';
+  static const String baseUrl = 'https://easy-market-fqz8.onrender.com/api';
 
   static Future<List<Product>> getProducts({String? search}) async {
     final uri = Uri.parse('$baseUrl/products').replace(queryParameters: search != null ? {'search': search} : null);
@@ -66,5 +66,55 @@ class ApiService {
       return List<Map<String, dynamic>>.from(jsonDecode(res.body));
     }
     return [];
+  }
+
+  static Future<Map<String, dynamic>> getPaymentOperators() async {
+    final res = await http.get(Uri.parse('$baseUrl/payments/operators'));
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body);
+    }
+    return {'operators': []};
+  }
+
+  static Future<Map<String, dynamic>> initPayment({
+    required String orderId,
+    required double amount,
+    required String phone,
+    required String operator,
+    required String userId,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/payments/mobile/init'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'order_id': orderId,
+        'amount': amount,
+        'phone': phone,
+        'operator': operator,
+        'user_id': userId,
+      }),
+    );
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body);
+    }
+    throw Exception('Erreur paiement');
+  }
+
+  static Future<Map<String, dynamic>> confirmPayment({
+    required String code,
+    required String orderId,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/payments/mobile/confirm'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'code': code,
+        'order_id': orderId,
+      }),
+    );
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body);
+    }
+    throw Exception('Erreur confirmation paiement');
   }
 }
