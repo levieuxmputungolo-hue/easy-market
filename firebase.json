@@ -1,0 +1,29 @@
+{
+  "auth": {
+    "providers": {
+      "emailPassword": true
+    }
+  },
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "hosting": {
+    "public": "web",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "rewrites": [
+      {"source": "/manifest.json", "destination": "/manifest.json"},
+      {"source": "/sw.js", "destination": "/sw.js"},
+      {"source": "/assets/**", "destination": "/assets/**"},
+      {"source": "/publicitaire*", "destination": "/publicitaire/index.html"},
+      {"source": "**", "destination": "/index.html"}
+    ]
+  },
+  "functions": {
+    "source": "functions",
+    "runtime": "nodejs18",
+    "predeploy": ["npm --prefix functions install"]
+  }
+}

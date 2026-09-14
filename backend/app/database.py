@@ -7,11 +7,12 @@ from urllib.parse import quote_plus
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))
 
 MONGO_URI = os.getenv("MONGO_URI", "")
+
 if not MONGO_URI:
-    raise RuntimeError("MONGO_URI manquant.")
+    raise RuntimeError("MONGO_URI manquant. Configurez-le dans les variables d'environnement Render.")
 
 # Fix: encode special chars in password if needed
-if "@" in MONGO_URI:
+if MONGO_URI and "@" in MONGO_URI:
     prefix, rest = MONGO_URI.split("://", 1)
     if "@" in rest:
         userinfo, host_part = rest.rsplit("@", 1)
@@ -21,6 +22,7 @@ if "@" in MONGO_URI:
 
 DB_NAME = os.getenv("DB_NAME", "aisy_market")
 
+# MongoDB is mandatory for backend
 client = motor.motor_asyncio.AsyncIOMotorClient(
     MONGO_URI,
     maxPoolSize=500,

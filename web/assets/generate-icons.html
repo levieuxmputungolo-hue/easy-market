@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html><head><title>Generate Icons</title></head><body>
+<canvas id="c"></canvas>
+<script>
+var sizes=[72,96,128,144,152,192,384,512];
+var c=document.getElementById('c');var ctx=c.getContext('2d');
+function drawIcon(s){
+  c.width=s;c.height=s;
+  var g=ctx.createLinearGradient(0,0,s,s);
+  g.addColorStop(0,'#2a7de1');g.addColorStop(1,'#1a5fb0');
+  ctx.fillStyle=g;ctx.fillRect(0,0,s,s);
+  ctx.fillStyle='#fff';ctx.font='bold '+Math.round(s*0.35)+'px Arial';
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('EM',s/2,s/2);
+  var link=document.createElement('a');
+  link.download='icon-'+s+'.png';
+  link.href=c.toDataURL('image/png');
+  link.click();
+}
+sizes.forEach(function(s){setTimeout(function(){drawIcon(s)},500*sizes.indexOf(s))});
+</script>
+<p>Les 8 icons vont se telecharger automatiquement.</p>
+</body></html>

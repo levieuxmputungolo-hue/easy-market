@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>API_KEY</key>
+	<string>AIzaSyDbxXExuSaGCYN7B1oA3e8WnlFvQRNgFME</string>
+	<key>GCM_SENDER_ID</key>
+	<string>587498926354</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.aisy.easyMarket</string>
+	<key>PROJECT_ID</key>
+	<string>easy-market-96c4a</string>
+	<key>STORAGE_BUCKET</key>
+	<string>easy-market-96c4a.appspot.com</string>
+	<key>IS_ADS_ENABLED</key>
+	<false/>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false/>
+	<key>IS_APPINVITE_ENABLED</key>
+	<false/>
+	<key>IS_GCM_ENABLED</key>
+	<false/>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true/>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:587498926354:ios:e8e3b2c4d5f6a7b8c9d0e1</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.587498926354-e8e3b2c4d5f6a7b8c9d0e1</string>
+	<key>CLIENT_ID</key>
+	<string>587498926354-e8e3b2c4d5f6a7b8c9d0e1.apps.googleusercontent.com</string>
+	<key>DATABASE_URL</key>
+	<string>https://easy-market-96c4a-default-rtdb.firebaseio.com</string>
+</dict>
+</plist>

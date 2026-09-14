@@ -1,0 +1,14 @@
+{
+  "name": "aisy-market-functions",
+  "description": "Cloud Functions pour Easy Market",
+  "version": "1.0.0",
+  "engines": {
+    "node": "18"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "firebase-admin": "^12.7.0",
+    "firebase-functions": "^6.3.0"
+  },
+  "private": true
+}
