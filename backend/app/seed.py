@@ -37,7 +37,7 @@ async def seed():
         })
 
     # Seed sellers / vendeurs avec communes
-    seller_count = await db.sellers.count_documents({})
+    seller_count = await db.vendeurs.count_documents({})
     if seller_count == 0:
         sellers = [
             {"name": "TechStore Pro", "commune": "Gombe", "latitude": -4.3090, "longitude": 15.3150, "phone": "+243811111111", "email": "techstore@aisy.com", "products_count": 5, "rating": 4.8, "image": "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=200&h=200&fit=crop", "verified": True},
@@ -48,7 +48,7 @@ async def seed():
         ]
         for s in sellers:
             s["created_at"] = datetime.utcnow()
-        await db.sellers.insert_many(sellers)
+        await db.vendeurs.insert_many(sellers)
         print("Vendeurs inseres: 5")
     else:
         print(f"Vendeurs deja presents: {seller_count}")
