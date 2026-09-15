@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from app.database import init_db, db
 from app.auth import decode_token
-from app.routers import products, users, orders, sellers, vendeurs, payments, chats, publicites, demands, notifications
+from app.routers import products, users, orders, sellers, vendeurs, payments, chats, publicites, demands, notifications, admin
 from bson import ObjectId
 from datetime import datetime
 import os
@@ -46,6 +46,7 @@ app.include_router(chats.router)
 app.include_router(publicites.router)
 app.include_router(demands.router)
 app.include_router(notifications.router)
+app.include_router(admin.router)
 
 # ─── Static files ───
 WEB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "web")

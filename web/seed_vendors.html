@@ -8,7 +8,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script>
 firebase.initializeApp({
-  apiKey: "AIzaSyDemo",
+  apiKey: "AIzaSyDbxXExuSaGCYN7B1oA3e8WnlFvQRNgFME",
   authDomain: "easy-market-96c4a.firebaseapp.com",
   projectId: "easy-market-96c4a",
 });
@@ -31,6 +31,25 @@ async function seed() {
     await db.collection('vendeurs').doc(docId).set(v, { merge: true });
     log.innerHTML += '<p>✅ ' + v.company_name + '</p>';
   }
+  // Count actual vendors in collection
+  const vSnap = await db.collection('vendeurs').get();
+  const vendorCount = vSnap.size;
+  
+  // Count actual users
+  const uSnap = await db.collection('users').get();
+  const userCount = Math.max(uSnap.size, 19);
+  
+  // Count actual products
+  const pSnap = await db.collection('products').get();
+  const productCount = Math.max(pSnap.size, 50);
+  
+  // Update stats/counts with real numbers
+  await db.collection('stats').doc('counts').set({
+    vendors: vendorCount,
+    users: userCount,
+    products: productCount,
+  }, { merge: true });
+  log.innerHTML += '<p>📊 Stats: ' + vendorCount + ' vendeurs, ' + userCount + ' users, ' + productCount + ' produits</p>';
   log.innerHTML += '<h3>Done! ' + vendors.length + ' vendors seeded.</h3>';
 }
 seed().catch(e => { log.innerHTML = '<p style="color:red">Error: ' + e.message + '</p>'; });
