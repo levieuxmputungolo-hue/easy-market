@@ -261,13 +261,25 @@ async def confirm_payment(data: dict, current_user: dict = Depends(get_current_u
 @router.post("/api/payments/webhook")
 async def flutterwave_webhook(request: Request):
     """Flutterwave webhook for payment status updates."""
+    from app.database import db
+
     body = await request.json()
     event = body.get("event", "")
     data = body.get("data", {})
 
     if event == "charge.completed" and data.get("status") == "successful":
         tx_ref = data.get("tx_ref", "")
-        print(f"Flutterwave Payment confirmed: tx_ref={tx_ref}, amount={data.get('amount')}")
+        amount = data.get("amount", 0)
+        flw_id = data.get("id", "")
+
+        # Update order status in MongoDB
+        if tx_ref:
+            await db.orders.update_one(
+                {"order_id": tx_ref},
+                {"$set": {"status": "paye", "payment_confirmed": True, "flw_id": str(flw_id), "paid_at": datetime.utcnow()}},
+            )
+            print(f"Flutterwave Payment confirmed: tx_ref={tx_ref}, amount={amount}")
+
         return {"status": "ok"}
 
     return {"status": "ignored"}

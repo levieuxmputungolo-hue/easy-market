@@ -32,7 +32,7 @@ def haversine(lat1, lng1, lat2, lng2):
 
 @router.get("/api/sellers")
 async def get_sellers():
-    cursor = db.sellers.find({})
+    cursor = db.vendeurs.find({})
     sellers = []
     async for doc in cursor:
         doc["_id"] = str(doc["_id"])
@@ -45,7 +45,7 @@ async def nearby_sellers(
     lng: float = Query(...),
     max_km: float = Query(50.0, le=200),
 ):
-    cursor = db.sellers.find({})
+    cursor = db.vendeurs.find({})
     results = []
     async for doc in cursor:
         s_lat = doc.get("latitude", 0)
@@ -60,7 +60,7 @@ async def nearby_sellers(
 
 @router.get("/api/sellers/commune/{commune}")
 async def sellers_by_commune(commune: str):
-    cursor = db.sellers.find({"commune": {"$regex": commune, "$options": "i"}})
+    cursor = db.vendeurs.find({"commune": {"$regex": commune, "$options": "i"}})
     sellers = []
     async for doc in cursor:
         doc["_id"] = str(doc["_id"])

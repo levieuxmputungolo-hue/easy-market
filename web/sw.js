@@ -1,4 +1,4 @@
-const CACHE_NAME = 'easymarket-v7';
+const CACHE_NAME = 'easymarket-v8';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -35,6 +35,7 @@ self.addEventListener('fetch', function(e) {
 
   var url = e.request.url;
 
+  // Firestore — network first, cache fallback
   if (url.includes('firestore.googleapis.com') || url.includes('firebaseio.com')) {
     e.respondWith(
       fetch(e.request).then(function(response) {
@@ -48,6 +49,20 @@ self.addEventListener('fetch', function(e) {
     return;
   }
 
+  // Render API — network first, no cache (payments must be real-time)
+  if (url.includes('easy-market-fqz8.onrender.com')) {
+    e.respondWith(
+      fetch(e.request).catch(function() {
+        return new Response(JSON.stringify({ error: 'Offline' }), {
+          status: 503,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      })
+    );
+    return;
+  }
+
+  // Firebase SDK — cache first
   if (url.includes('firebaseapp') || url.includes('gstatic.com/firebase')) {
     e.respondWith(
       caches.match(e.request).then(function(cached) {
@@ -61,6 +76,7 @@ self.addEventListener('fetch', function(e) {
     return;
   }
 
+  // Static assets — cache first, network fallback
   e.respondWith(
     caches.match(e.request).then(function(cached) {
       if (cached) return cached;
