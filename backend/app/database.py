@@ -37,7 +37,11 @@ async def init_db():
     # ── Products ──
     if "products" not in collections:
         await db.create_collection("products")
-    await db.products.create_index([("titre", "text"), ("name", "text"), ("description", "text")], background=True)
+    try:
+        await db.products.drop_index("name_text_description_text")
+    except Exception:
+        pass
+    await db.products.create_index([("titre", "text"), ("name", "text"), ("description", "text")], background=True, name="titre_text_name_text_description_text")
     await db.products.create_index("category", background=True)
     await db.products.create_index("price", background=True)
     await db.products.create_index("vendeur_id", background=True)
