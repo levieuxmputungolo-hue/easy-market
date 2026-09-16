@@ -2,6 +2,7 @@ import os
 import motor.motor_asyncio
 from datetime import datetime
 from dotenv import load_dotenv
+from urllib.parse import quote_plus, urlparse, urlunparse
 
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))
 
@@ -11,10 +12,25 @@ DB_NAME = os.getenv("DB_NAME", "aisy_market")
 client = None
 db = None
 
+def _encode_mongo_uri(uri: str) -> str:
+    """Encode username:password in MongoDB URI per RFC 3986."""
+    if "@" not in uri:
+        return uri
+    parsed = urlparse(uri)
+    if parsed.username:
+        user = quote_plus(parsed.username)
+        password = quote_plus(parsed.password) if parsed.password else ""
+        netloc = f"{user}:{password}@{parsed.hostname}"
+        if parsed.port:
+            netloc += f":{parsed.port}"
+        return urlunparse(parsed._replace(netloc=netloc))
+    return uri
+
 if MONGO_URI:
     try:
+        encoded_uri = _encode_mongo_uri(MONGO_URI)
         client = motor.motor_asyncio.AsyncIOMotorClient(
-            MONGO_URI,
+            encoded_uri,
             serverSelectionTimeoutMS=10000,
             tls=True,
         )
