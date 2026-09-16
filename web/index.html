@@ -1088,7 +1088,8 @@
       .msg-conv-item .m-badge { font-size:10px; min-width:18px; height:18px; }
       .msg-chat { display:none; flex-direction:column; height:100%; overflow:hidden; border-radius:0; }
       .msg-show-chat .msg-sidebar { display:none; }
-      .msg-show-chat .msg-chat { display:flex; position:fixed; top:0; left:0; right:0; bottom:0; z-index:50; background:#f5f5f5; border-radius:0; }
+      .msg-show-chat .aisy-bottom-nav { display:none !important; }
+      .msg-show-chat .msg-chat { display:flex; position:fixed; top:0; left:0; right:0; bottom:0; z-index:100; background:#f5f5f5; border-radius:0; }
       .chat-header .ch-back { display:flex; }
       .chat-header { padding:10px 12px; }
       .chat-header .ch-avatar { width:38px; height:38px; font-size:15px; }
@@ -2565,6 +2566,8 @@ function showSection(name) {
   const el = document.querySelector(`[data-section="${name}"]`);
   if (el) el.classList.add('active');
   document.querySelectorAll('.aisy-nav-item').forEach(b => b.classList.toggle('active', b.dataset.target === name));
+  var helpFab = document.querySelector('.help-fab');
+  if (helpFab) helpFab.style.display = (name === 'messages' || name === 'ia') ? 'none' : 'flex';
   if (name === 'accueil') {
     allProducts = [];
   renderProducts();
@@ -4050,9 +4053,11 @@ function startBuyerConvListener() {
       .where('buyer_id', '==', buyerUid)
       .onSnapshot((snap) => {
         try {
+          const firestoreIds = new Set();
           snap.forEach(doc => {
             const data = doc.data();
             const chatId = doc.id;
+            firestoreIds.add(chatId);
             let conv = msgConvs.find(c => c.id === chatId);
             if (!conv) {
               conv = {
@@ -4073,6 +4078,7 @@ function startBuyerConvListener() {
             conv.lastMsg = data.lastMessage || conv.lastMsg;
             conv.unread = (data.unread_buyer || 0);
           });
+          msgConvs = msgConvs.filter(c => firestoreIds.has(c.id));
           saveMsgConvs();
           renderConvList();
         } catch(e) { console.warn('Buyer convs snapshot error:', e); }
@@ -7577,9 +7583,9 @@ function showPayment() {
 
 function renderPaySheet(subtotal) {
   const operators = [
-    { id:'mpesa', name:'M-Pesa', icon:'📱', color:'#4CAF50' },
-    { id:'orange', name:'Orange Money', icon:'🟠', color:'#FF6A00' },
-    { id:'airtel', name:'Airtel Money', icon:'🔴', color:'#E53935' },
+    { id:'mpesa', name:'M-Pesa', icon:'<img src="https://business.m-pesa.com/wp-content/uploads/2019/01/mpesa_logo.png" style="height:22px" onerror="this.style.display=\'none\';this.parentNode.innerHTML=\'📱\'">', color:'#4CAF50' },
+    { id:'orange', name:'Orange Money', icon:'<img src="https://upload.wikimedia.org/wikipedia/commons/1/19/Logo_Orange_Money.svg" style="height:22px" onerror="this.style.display=\'none\';this.parentNode.innerHTML=\'🟠\'">', color:'#FF6A00' },
+    { id:'airtel', name:'Airtel Money', icon:'<img src="https://upload.wikimedia.org/wikipedia/commons/8/86/Airtel_logo-02.png" style="height:22px" onerror="this.style.display=\'none\';this.parentNode.innerHTML=\'🔴\'">', color:'#E53935' },
     { id:'visa', name:'Carte Visa', icon:'💳', color:'#1a237e' },
   ];
   const bgColors = { mpesa:'#e8f5e9', orange:'#fff3e0', airtel:'#ffebee', visa:'#e8eaf6' };
@@ -7644,23 +7650,23 @@ function renderPaySheet(subtotal) {
           </div>
         ` : selectedOperator === 'mpesa' ? `
           <div style="margin-top:12px;background:linear-gradient(135deg,#e8f5e9,#c8e6c9);border-radius:14px;padding:16px;text-align:center">
-            <div style="font-size:40px;margin-bottom:4px">📱</div>
+            <div style="margin-bottom:4px"><img src="https://business.m-pesa.com/wp-content/uploads/2019/01/mpesa_logo.png" style="height:40px" onerror="this.style.display='none';this.parentNode.innerHTML='📱'"></div>
             <div style="font-weight:700;font-size:16px;color:#2e7d32">M-Pesa</div>
-            <div style="font-size:12px;color:#558b2f;margin-bottom:10px">Paiement mobile sécurisé</div>
+            <div style="font-size:12px;color:#558b2f;margin-bottom:10px">Paiement mobile sécurisé — Vodacom RDC</div>
             <input class="aisy-input" id="payPhone" type="tel" placeholder="Numéro M-Pesa (ex: +2438XXXXXXXX)" value="+243811111111" style="text-align:center;font-weight:600">
           </div>
         ` : selectedOperator === 'orange' ? `
           <div style="margin-top:12px;background:linear-gradient(135deg,#fff3e0,#ffe0b2);border-radius:14px;padding:16px;text-align:center">
-            <div style="font-size:40px;margin-bottom:4px">🟠</div>
+            <div style="margin-bottom:4px"><img src="https://upload.wikimedia.org/wikipedia/commons/1/19/Logo_Orange_Money.svg" style="height:40px" onerror="this.style.display='none';this.parentNode.innerHTML='🟠'"></div>
             <div style="font-weight:700;font-size:16px;color:#e65100">Orange Money</div>
-            <div style="font-size:12px;color:#bf360c;margin-bottom:10px">Paiement mobile Orange</div>
+            <div style="font-size:12px;color:#bf360c;margin-bottom:10px">Paiement mobile Orange RDC</div>
             <input class="aisy-input" id="payPhone" type="tel" placeholder="Numéro Orange Money" value="+243811111111" style="text-align:center;font-weight:600">
           </div>
         ` : selectedOperator === 'airtel' ? `
           <div style="margin-top:12px;background:linear-gradient(135deg,#ffebee,#ffcdd2);border-radius:14px;padding:16px;text-align:center">
-            <div style="font-size:40px;margin-bottom:4px">🔴</div>
+            <div style="margin-bottom:4px"><img src="https://upload.wikimedia.org/wikipedia/commons/8/86/Airtel_logo-02.png" style="height:40px" onerror="this.style.display='none';this.parentNode.innerHTML='🔴'"></div>
             <div style="font-weight:700;font-size:16px;color:#c62828">Airtel Money</div>
-            <div style="font-size:12px;color:#b71c1c;margin-bottom:10px">Paiement mobile Airtel</div>
+            <div style="font-size:12px;color:#b71c1c;margin-bottom:10px">Paiement mobile Airtel RDC</div>
             <input class="aisy-input" id="payPhone" type="tel" placeholder="Numéro Airtel Money" value="+243811111111" style="text-align:center;font-weight:600">
           </div>
         ` : `
@@ -7685,7 +7691,7 @@ function confirmPayNow() {
   sheet.innerHTML = `
     <div style="padding:20px;text-align:center">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-        <h2 style="font-size:20px;font-weight:700">${selectedOperator === 'mpesa' ? '📱 M-Pesa' : selectedOperator === 'orange' ? '🟠 Orange Money' : '🔴 Airtel Money'}</h2>
+        <h2 style="font-size:20px;font-weight:700">${selectedOperator === 'mpesa' ? '📱 M-Pesa' : selectedOperator === 'orange' ? '🟠 Orange Money' : '🔴 Airtel Money'} — Paiement</h2>
         <button onclick="renderPaySheet(${subtotal})" style="background:none;border:none;font-size:14px;cursor:pointer;color:#2a7de1">◀ Retour</button>
       </div>
       <div id="payStep">

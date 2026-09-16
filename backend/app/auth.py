@@ -107,7 +107,9 @@ async def get_current_user(
     except HTTPException:
         pass
 
-    # Fallback: accept Firebase UID (for web frontend compatibility)
+    # Fallback: accept Firebase UID (LEGACY - to be replaced with Firebase Admin SDK)
+    # SECURITY: Firebase UIDs are 28-char random strings, hard to guess but not cryptographically verified
+    # TODO: Replace with firebase-admin verify_id_token() for full production
     if len(token) > 20 and not token.startswith("eyJ"):
         return {"sub": token, "role": "client", "email": ""}
 

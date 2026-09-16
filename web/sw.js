@@ -1,4 +1,4 @@
-const CACHE_NAME = 'easymarket-v8';
+const CACHE_NAME = 'easymarket-v11';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

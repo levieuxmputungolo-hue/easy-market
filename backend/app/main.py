@@ -9,16 +9,48 @@ from bson import ObjectId
 from datetime import datetime
 import os
 import socketio
+import time
+from collections import defaultdict
 
 # ─── Socket.IO (real-time) ───
+ALLOWED_ORIGINS = [
+    "https://easy-market-96c4a.web.app",
+    "https://easy-market-96c4a.firebaseapp.com",
+]
 sio = socketio.AsyncServer(
     async_mode="asgi",
-    cors_allowed_origins="*",
+    cors_allowed_origins=ALLOWED_ORIGINS,
     logger=False,
     engineio_logger=False,
 )
 
 app = FastAPI(title="Easy Market API")
+
+# ─── Rate Limiter (in-memory) ───
+_rate_store = defaultdict(list)
+RATE_LIMIT_LOGIN = 10      # 10 attempts per 5 minutes
+RATE_LIMIT_API = 100       # 100 requests per minute
+RATE_WINDOW = 300           # 5 minutes
+
+def check_rate_limit(key: str, limit: int, window: int = RATE_WINDOW) -> bool:
+    now = time.time()
+    _rate_store[key] = [t for t in _rate_store[key] if now - t < window]
+    if len(_rate_store[key]) >= limit:
+        return False
+    _rate_store[key].append(now)
+    return True
+
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    if request.url.path.startswith("/api/"):
+        client_ip = request.client.host if request.client else "unknown"
+        is_login = "/login" in request.url.path or "/register" in request.url.path
+        key = f"{client_ip}:{request.url.path}"
+        limit = RATE_LIMIT_LOGIN if is_login else RATE_LIMIT_API
+        if not check_rate_limit(key, limit):
+            return JSONResponse(status_code=429, content={"detail": "Trop de requêtes. Réessayez dans quelques minutes."})
+    return await call_next(request)
 
 # ─── CORS ───
 app.add_middleware(

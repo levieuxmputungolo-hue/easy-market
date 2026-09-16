@@ -1,8 +1,19 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Depends, Header
 from app.database import db
+from app.auth import require_role
 from datetime import datetime
+import os
 
 router = APIRouter()
+
+ADMIN_SECRET = os.getenv("ADMIN_SECRET", "aisy-admin-2026-prod")
+
+
+async def verify_admin(x_admin_token: str = Header(None, alias="X-Admin-Token")):
+    if not x_admin_token or x_admin_token != ADMIN_SECRET:
+        raise HTTPException(403, "Accès admin interdit")
+    return True
+
 
 VENDORS = [
     {"company_name": "TechStore Pro", "full_name": "Jean Mukendi", "email": "techstore@aisy.com", "phone": "+243811111111", "commune": "Gombe", "localisation": "Kinshasa, Gombe", "latitude": -4.309, "longitude": 15.315, "products_count": 5, "rating": 4.8, "plan": "premium", "subscription_status": "active", "verified": True, "photo": "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=200&h=200&fit=crop", "role": "vendeur"},
@@ -16,7 +27,7 @@ VENDORS = [
 
 
 @router.post("/api/admin/seed-vendors")
-async def seed_vendors():
+async def seed_vendors(admin: dict = Depends(require_role("admin")), _token: bool = Depends(verify_admin)):
     if db is None:
         return {"error": "MongoDB non disponible"}
     count = 0
@@ -31,5 +42,5 @@ async def seed_vendors():
 
 
 @router.get("/api/admin/seed-vendors")
-async def seed_vendors_get():
+async def seed_vendors_get(_token: bool = Depends(verify_admin)):
     return await seed_vendors()
