@@ -2329,6 +2329,47 @@ const API = (() => {
   return 'https://easy-market-fqz8.onrender.com';
 })();
 
+// ─── CLOUDINARY (stockage médias : images + vidéos + audio, gratuit) ───
+// ⚠️ À REMPLIR après création du compte cloudinary.com :
+//   Cloud name  → Settings → Product Environment Credentials
+//   Preset      → Settings → Upload → Upload presets (mode UNSIGNED)
+const CLOUDINARY_CLOUD = 'wngxoycd';  // environnement produit Easy Market
+const CLOUDINARY_PRESET = 'easy_market_uploads';  // mode Unsigned, folder easy_market
+
+// Upload d'un fichier vers Cloudinary. Renvoie l'URL HTTPS permanente.
+async function cloudUpload(file, folder) {
+  if (!CLOUDINARY_CLOUD || !CLOUDINARY_PRESET) {
+    throw new Error('Cloudinary non configuré (renseigner CLOUDINARY_CLOUD / CLOUDINARY_PRESET)');
+  }
+  const fd = new FormData();
+  // Un Blob (ex: vocal enregistré) doit être nommé pour que Cloudinary détecte le type
+  let payload = file;
+  if (!(file instanceof File) && (typeof Blob !== 'undefined') && file instanceof Blob) {
+    const extMap = { 'audio/webm': 'webm', 'audio/ogg': 'ogg', 'audio/mpeg': 'mp3', 'audio/wav': 'wav', 'video/mp4': 'mp4', 'video/webm': 'webm' };
+    // ⚠️ Ne jamais générer '.bin' : Cloudinary refuse cette extension
+    let ext = extMap[file.type] || '';
+    if (!ext && file.type && file.type.indexOf('/') > -1) {
+      ext = file.type.split('/')[1].split('+')[0].replace(/[^a-z0-9]/gi, '');
+    }
+    if (!ext || ext === 'octet-stream' || ext === 'html') ext = 'webm';
+    payload = new File([file], 'upload_' + Date.now() + '.' + ext, { type: file.type || 'application/octet-stream' });
+  }
+  fd.append('file', payload);
+  fd.append('upload_preset', CLOUDINARY_PRESET);
+  if (folder) fd.append('folder', folder);
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/auto/upload`, {
+    method: 'POST', body: fd,
+  });
+  if (!res.ok) {
+    let detail = '';
+    try { const j = await res.json(); detail = (j.error && j.error.message) ? ' : ' + j.error.message : ''; } catch(e) {}
+    throw new Error('Upload Cloudinary ' + res.status + detail);
+  }
+  const data = await res.json();
+  if (!data.secure_url) throw new Error('Upload Cloudinary : réponse invalide');
+  return data.secure_url;
+}
+
 // ─── FIREBASE ───
 const firebaseConfig = {
   apiKey: "AIzaSyDbxXExuSaGCYN7B1oA3e8WnlFvQRNgFME",
@@ -2341,7 +2382,10 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const fbAuth = firebase.auth();
 const fbDb = firebase.firestore();
-const fbStorage = firebase.storage();
+// Firebase Storage n'est pas initialisé sur ce projet (pas de billing) :
+// on ne l'initialise plus, tous les médias passent par Cloudinary.
+let fbStorage = null;
+try { fbStorage = firebase.storage(); } catch(e) { console.warn('Firebase Storage indisponible (normal) :', e.message); }
 const fbServerTimestamp = firebase.firestore.FieldValue.serverTimestamp;
 let fbUser = null;
 fbAuth.onAuthStateChanged(u => {
@@ -2880,13 +2924,13 @@ function createCard(p) {
   card.innerHTML = `
     ${p.rating >= 4.5 ? '<span class="tag">⭐ Top</span>' : ''}
     ${disc > 0 ? `<span class="badge-disc">-${disc}%</span>` : ''}
-    <button class="fav-btn ${isFav(p._id) ? 'liked' : ''}" onclick="event.stopPropagation();toggleFav('${escHtml(p._id)}')" data-fav="${escHtml(p._id)}"><i class="fas fa-heart"></i></button>
+    <button class="fav-btn ${isFav(p._id) ? 'liked' : ''}" onclick="event.stopPropagation();toggleFav('${escJs(p._id)}')" data-fav="${escHtml(p._id)}"><i class="fas fa-heart"></i></button>
     ${imgHtml}
     <div class="prod-body">
       <h4>${escHtml(titre)}</h4>
       <p class="prix">${fmtPrice(p.price)}</p>
       <p class="deliv"><i class="fas fa-truck"></i> Livraison rapide</p>
-      ${p.seller_name ? `<p class="vendeur" onclick="event.stopPropagation();searchSeller('${escHtml(p.seller_name)}')">${escHtml(p.seller_name)} ⭐ ${p.rating || '—'}</p>` : `<p class="vendeur">⭐ ${p.rating || '—'}</p>`}
+      ${p.seller_name ? `<p class="vendeur" onclick="event.stopPropagation();searchSeller('${escJs(p.seller_name)}')">${escHtml(p.seller_name)} ⭐ ${p.rating || '—'}</p>` : `<p class="vendeur">⭐ ${p.rating || '—'}</p>`}
     </div>`;
   return card;
 }
@@ -2965,7 +3009,7 @@ function runVisSearch() {
       resultCount.textContent = `${matched.length} produit${matched.length > 1 ? 's' : ''} trouvé${matched.length > 1 ? 's' : ''}`;
 
       resultsGrid.innerHTML = matched.map(p => `
-        <div class="hcard" onclick="showDetail(allProducts.find(x=>x._id==='${p._id}')||p)">
+        <div class="hcard" onclick="showDetail(allProducts.find(x=>x._id==='${escJs(p._id)}')||p)">
           <div class="hcard-img">
             <span class="hcard-badge" style="background:${colors[0] || '#2a7de1'}">📷 Match</span>
             ${p.image && (p.image.startsWith('http') || p.image.startsWith('data:'))
@@ -3159,7 +3203,7 @@ function renderPopularRow(prods) {
     const pImg = (p.images && p.images[0]) || p.image || '';
     const hasImg = pImg && (pImg.startsWith('http') || pImg.startsWith('data:'));
     return `
-    <div class="hcard" onclick="showDetail(allProducts.find(x=>x._id==='${escHtml(p._id)}')||p)">
+    <div class="hcard" onclick="showDetail(allProducts.find(x=>x._id==='${escJs(p._id)}')||p)">
       <div class="hcard-img">
         ${p.rating >= 4.7 ? '<span class="hcard-badge">⭐ Top</span>' : ''}
         ${hasImg
@@ -3187,7 +3231,7 @@ function renderBestsellerRow(prods) {
     const pImg = (p.images && p.images[0]) || p.image || '';
     const hasImg = pImg && (pImg.startsWith('http') || pImg.startsWith('data:'));
     return `
-    <div class="hcard" onclick="showDetail(allProducts.find(x=>x._id==='${escHtml(p._id)}')||p)">
+    <div class="hcard" onclick="showDetail(allProducts.find(x=>x._id==='${escJs(p._id)}')||p)">
       <div class="hcard-img">
         ${p.salesCount >= 2000 ? '<span class="hcard-badge sales">🔥 Meilleure vente</span>' : ''}
         ${hasImg
@@ -3241,7 +3285,7 @@ function renderMiniGrid(prods) {
     const pImg = (p.images && p.images[0]) || p.image || '';
     const hasImg = pImg && (pImg.startsWith('http') || pImg.startsWith('data:'));
     return `
-    <div onclick="showDetail(allProducts.find(x=>x._id==='${escHtml(p._id)}')||p)" style="background:#fff;border-radius:12px;overflow:hidden;border:1px solid #f0f0f0;cursor:pointer;display:flex;flex-direction:column">
+    <div onclick="showDetail(allProducts.find(x=>x._id==='${escJs(p._id)}')||p)" style="background:#fff;border-radius:12px;overflow:hidden;border:1px solid #f0f0f0;cursor:pointer;display:flex;flex-direction:column">
       <div style="aspect-ratio:1;background:#f8f8fa;display:flex;align-items:center;justify-content:center;font-size:40px;flex-shrink:0">
         ${hasImg
           ? `<img src="${pImg}" alt="${escHtml(p.name)}" style="width:100%;height:100%;object-fit:cover">`
@@ -3648,7 +3692,7 @@ function renderPubSlides() {
         <h3>${escHtml(p.titre || 'Promotion')}</h3>
         <p>${escHtml(p.description || '')}</p>
       </div>
-      ${(user || vendeurUser) ? `<button class="pub-admin-btn" onclick="event.stopPropagation();deletePublicite('${p._id}')" title="Supprimer" style="background:rgba(255,59,48,0.8)">🗑️</button>` : ''}
+      ${(user || vendeurUser) ? `<button class="pub-admin-btn" onclick="event.stopPropagation();deletePublicite('${escJs(p._id)}')" title="Supprimer" style="background:rgba(255,59,48,0.8)">🗑️</button>` : ''}
     </div>
   `).join('');
   if (dotsEl) {
@@ -3678,9 +3722,8 @@ async function deletePublicite(id) {
     const doc = await fbDb.collection('publicites').doc(id).get();
     const data = doc.data();
     await fbDb.collection('publicites').doc(id).delete();
-    if (data && data.mediaUrl) {
-      try { await fbStorage.refFromURL(data.mediaUrl).delete(); } catch(e) {}
-    }
+    // NB : la suppression du média Cloudinary nécessite une signature serveur
+    // (API secret) — le fichier reste orphelin mais n'est plus référencé.
     toast('Publicité supprimée');
     loadPubAdminList();
     loadPublicites();
@@ -3738,8 +3781,8 @@ async function loadPubAdminList() {
           <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(p.titre || 'Sans titre')}</div>
           <div style="font-size:11px;color:#888">${p.type === 'video' ? '🎬 Vidéo' : '🖼 Image'} • ${p.active !== false ? '✅ Actif' : '❌ Inactif'}</div>
         </div>
-        <button onclick="togglePubActive('${p._id}', ${p.active !== false ? false : true})" style="background:none;border:none;cursor:pointer;font-size:18px" title="${p.active !== false ? 'Désactiver' : 'Activer'}">${p.active !== false ? '🟢' : '🔴'}</button>
-        <button onclick="deletePublicite('${p._id}')" style="background:none;border:none;cursor:pointer;font-size:16px;color:#ff3b30" title="Supprimer">🗑️</button>
+        <button onclick="togglePubActive('${escJs(p._id)}', ${p.active !== false ? false : true})" style="background:none;border:none;cursor:pointer;font-size:18px" title="${p.active !== false ? 'Désactiver' : 'Activer'}">${p.active !== false ? '🟢' : '🔴'}</button>
+        <button onclick="deletePublicite('${escJs(p._id)}')" style="background:none;border:none;cursor:pointer;font-size:16px;color:#ff3b30" title="Supprimer">🗑️</button>
       </div>
     `).join('');
   } catch(e) { el.innerHTML = '<div style="color:#ff3b30;padding:12px">Erreur chargement</div>'; }
@@ -3770,10 +3813,7 @@ async function publishPublicite() {
 
   try {
     const pubId = fbDb.collection('publicites').doc().id;
-    const path = `publicites/${pubId}/${file.name}`;
-    const ref = fbStorage.ref(path);
-    const snap = await ref.put(file);
-    const mediaUrl = await snap.ref.getDownloadURL();
+    const mediaUrl = await cloudUpload(file, 'publicites');
 
     if (status) status.textContent = '✅ Upload terminé, publication...';
 
@@ -4050,7 +4090,7 @@ function startBuyerConvListener() {
   const buyerUid = fbAuth.currentUser.uid;
   try {
     buyerConvsUnsub = fbDb.collection('chats')
-      .where('buyer_id', '==', buyerUid)
+      .where('participants', 'array-contains', buyerUid)
       .onSnapshot((snap) => {
         try {
           const firestoreIds = new Set();
@@ -4078,7 +4118,10 @@ function startBuyerConvListener() {
             conv.lastMsg = data.lastMessage || conv.lastMsg;
             conv.unread = (data.unread_buyer || 0);
           });
-          msgConvs = msgConvs.filter(c => firestoreIds.has(c.id));
+          // On ne retire que les conversations DÉJÀ vues côté Firestore :
+          // les convs legacy (localStorage seulement) restent visibles.
+          msgConvs.forEach(c => { if (firestoreIds.has(c.id)) c._fb = true; });
+          msgConvs = msgConvs.filter(c => !(c._fb && !firestoreIds.has(c.id)));
           saveMsgConvs();
           renderConvList();
         } catch(e) { console.warn('Buyer convs snapshot error:', e); }
@@ -4139,9 +4182,9 @@ function showChatView(conv) {
       <div class="ch-local-time">🕐 ${localTime} · ${conv.online ? '🟢 En ligne' : '⚪ Hors ligne'}</div>
     </div>
     <div class="ch-actions">
-      <button class="ch-action" onclick="msgCallSeller({name:'${escHtml(conv.name)}'})" title="Appeler">📞</button>
+      <button class="ch-action" onclick="msgCallSeller({name:'${escJs(conv.name)}'})" title="Appeler">📞</button>
       <button class="ch-action" onclick="toast('Appel vidéo bientôt disponible')" title="Appel vidéo">📹</button>
-      <button class="ch-action" onclick="toggleSellerInfo('${escHtml(conv.name)}')" title="Profil fournisseur">🏪</button>
+      <button class="ch-action" onclick="toggleSellerInfo('${escJs(conv.name)}')" title="Profil fournisseur">🏪</button>
     </div>`;
 
   // === PRODUCT CONTEXT BANNER ===
@@ -4153,14 +4196,14 @@ function showChatView(conv) {
     const pId = conv.productId || sellerProducts[0]?._id || '';
     bannerArea.style.display = 'block';
     bannerArea.innerHTML = `
-      <div class="product-context-banner" onclick="showDetail('${escHtml(pId)}');showSection('catalogue')">
+      <div class="product-context-banner" onclick="showDetail('${escJs(pId)}');showSection('catalogue')">
         ${pImg ? `<img class="pcb-img" src="${escHtml(pImg)}" alt="">` : `<div class="pcb-img">📦</div>`}
         <div class="pcb-info">
           <div class="pcb-title">${escHtml(pName)}</div>
           <div class="pcb-price">${fmtPrice(pPrice)}</div>
           <div class="pcb-meta">Produit lié à cette conversation</div>
         </div>
-        <button class="pcb-btn" onclick="event.stopPropagation();orderProduct('${escHtml(pId)}','${escHtml(pName)}')">Commander</button>
+        <button class="pcb-btn" onclick="event.stopPropagation();orderProduct('${escJs(pId)}','${escJs(pName)}')">Commander</button>
       </div>`;
   } else {
     bannerArea.style.display = 'none';
@@ -4187,7 +4230,7 @@ function showChatView(conv) {
     setTimeout(function(){
       var now = Date.now();
       conv.messages.push({
-        from:'seller', text:'Bonjour 🥰 Bienvenue chez ' + escHtml(conv.name) + ' ! Comment puis-je vous aider ?',
+        from:'seller', text:'Bonjour 🥰 Bienvenue chez ' + conv.name + ' ! Comment puis-je vous aider ?',
         timestamp: now, read: false, type: 'text'
       });
       conv.lastMsg = 'Bienvenue !';
@@ -4318,7 +4361,7 @@ function shareProductInChat() {
       <div style="padding:12px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
         ${products.map(p => `
           <div style="background:#f8f9fa;border-radius:10px;overflow:hidden;cursor:pointer;border:1px solid #f0f0f0;transition:all .15s" onmouseover="this.style.borderColor='#1677FF'" onmouseout="this.style.borderColor='#f0f0f0'"
-            onclick="doShareProduct('${escHtml(p._id||'')}','${escHtml((p.titre||p.name||'Produit').replace(/'/g,"\\'"))}','${escHtml(p.prix||p.price||0)}','${escHtml(p.image||'')}',this.closest('.attachment-overlay'))">
+            onclick="doShareProduct('${escJs(p._id||'')}','${escJs(p.titre||p.name||'Produit')}','${escJs(p.prix||p.price||0)}','${escJs(p.image||'')}',this.closest('.attachment-overlay'))">
             ${p.image ? `<img src="${escHtml(p.image)}" style="width:100%;aspect-ratio:1;object-fit:cover" onerror="this.outerHTML='<div style=\\'width:100%;aspect-ratio:1;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:28px\\'>📦</div>'">` : '<div style="width:100%;aspect-ratio:1;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:28px">📦</div>'}
             <div style="padding:6px;font-size:11px;font-weight:600;color:#333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(p.titre || p.name || 'Produit')}</div>
             <div style="padding:0 6px 6px;font-size:12px;font-weight:800;color:#FF4D4F">${fmtPrice(p.prix || p.price || 0)}</div>
@@ -4350,7 +4393,7 @@ function doShareProduct(id, name, price, img, overlay) {
   // Push to Firestore
   if (fbAuth.currentUser) {
     try {
-      fbDb.collection('chats').doc(conv.id).collection('messages').add({
+      pushChatToFirestore(conv, {
         text: `Je suis intéressé par ${name}`,
         senderId: fbAuth.currentUser.uid,
         senderName: user?.name || fbAuth.currentUser?.displayName || 'Client',
@@ -4360,11 +4403,7 @@ function doShareProduct(id, name, price, img, overlay) {
         productImg: img, productId: id,
         timestamp: firebase.firestore.FieldValue.serverTimestamp(),
         read: false,
-      });
-      fbDb.collection('chats').doc(conv.id).set({
-        lastMessage: `🛒 ${name}`,
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-      }, { merge: true });
+      }, `🛒 ${name}`);
     } catch(e) { console.warn('shareProduct Firestore error:', e); }
   }
 }
@@ -4402,7 +4441,7 @@ function sendQuotationCard() {
 
   if (fbAuth.currentUser) {
     try {
-      fbDb.collection('chats').doc(conv.id).collection('messages').add({
+      pushChatToFirestore(conv, {
         text: `Devis pour ${product}`,
         senderId: fbAuth.currentUser.uid,
         senderName: user?.name || fbAuth.currentUser?.displayName || 'Client',
@@ -4416,7 +4455,7 @@ function sendQuotationCard() {
         quotationDelivery: delivery,
         timestamp: firebase.firestore.FieldValue.serverTimestamp(),
         read: false,
-      });
+      }, `📋 Devis: ${product}`);
     } catch(e) { console.warn('sendQuotation Firestore error:', e); }
   }
 }
@@ -4449,7 +4488,7 @@ function sendOrderStatusCard() {
 
   if (fbAuth.currentUser) {
     try {
-      fbDb.collection('chats').doc(conv.id).collection('messages').add({
+      pushChatToFirestore(conv, {
         text: `Statut commande ${orderId}`,
         senderId: fbAuth.currentUser.uid,
         senderName: user?.name || fbAuth.currentUser?.displayName || 'Client',
@@ -4461,7 +4500,7 @@ function sendOrderStatusCard() {
         orderStep: parseInt(step) || 1,
         timestamp: firebase.firestore.FieldValue.serverTimestamp(),
         read: false,
-      });
+      }, `📦 Cmd: ${orderId}`);
     } catch(e) { console.warn('sendOrderStatus Firestore error:', e); }
   }
 }
@@ -4518,8 +4557,8 @@ function toggleSellerInfo(name) {
       </div>
       <div style="padding:16px 20px">
         <div style="display:flex;gap:8px">
-          <button onclick="msgCallSeller({name:'${escHtml(name)}'})" style="flex:1;padding:12px;border:1.5px solid #e0e6ed;border-radius:12px;background:#fff;font-size:14px;font-weight:600;cursor:pointer;color:#333">📞 Appeler</button>
-          <button onclick="document.getElementById('sellerInfoModal').remove();sendQuickReply('Bonjour ${escHtml(name)}, je souhaite un devis B2B.')" style="flex:1;padding:12px;border:none;border-radius:12px;background:#2a7de1;font-size:14px;font-weight:600;cursor:pointer;color:#fff">💬 Demander devis</button>
+          <button onclick="msgCallSeller({name:'${escJs(name)}'})" style="flex:1;padding:12px;border:1.5px solid #e0e6ed;border-radius:12px;background:#fff;font-size:14px;font-weight:600;cursor:pointer;color:#333">📞 Appeler</button>
+          <button onclick="document.getElementById('sellerInfoModal').remove();sendQuickReply('Bonjour ${escJs(name)}, je souhaite un devis B2B.')" style="flex:1;padding:12px;border:none;border-radius:12px;background:#2a7de1;font-size:14px;font-weight:600;cursor:pointer;color:#fff">💬 Demander devis</button>
         </div>
       </div>
       <div style="padding:8px 20px 20px;text-align:center;color:#aaa;font-size:11px">Easy Market — Fiche fournisseur certifiee</div>
@@ -4689,14 +4728,20 @@ function renderMessages(conv) {
             ${m.productMin ? `<div class="rmc-row"><span class="rmc-label-sm">MOQ</span><span class="rmc-value">${m.productMin} pcs</span></div>` : ''}
           </div>
           <div class="rmc-footer">
-            <button class="rmc-btn-primary" onclick="orderProduct('${escHtml(m.productId || '')}','${escHtml(m.product || '')}')">Commander</button>
-            <button class="rmc-btn-outline" onclick="showDetail('${escHtml(m.productId || '')}');showSection('catalogue')">Voir détails</button>
+            <button class="rmc-btn-primary" onclick="orderProduct('${escJs(m.productId || '')}','${escJs(m.product || '')}')">Commander</button>
+            <button class="rmc-btn-outline" onclick="showDetail('${escJs(m.productId || '')}');showSection('catalogue')">Voir détails</button>
           </div>
+        </div>`;
+    } else if (msgType === 'video' || m.video) {
+      bubbleHTML = `
+        <div class="msg-bubble" style="padding:4px;overflow:hidden">
+          <video controls preload="metadata" src="${escHtml(m.video)}" style="width:100%;max-width:300px;border-radius:14px;display:block"></video>
+          ${m.text ? `<div style="padding:8px 10px 4px;font-size:14px">${escHtml(m.text)}</div>` : ''}
         </div>`;
     } else if (msgType === 'image' || m.img) {
       bubbleHTML = `
         <div class="msg-bubble" style="padding:4px;overflow:hidden">
-          <img src="${escHtml(m.img)}" style="width:100%;max-width:300px;border-radius:14px;display:block;cursor:pointer" onclick="window.open('${escHtml(m.img)}')" onerror="this.outerHTML='<div style=\\'padding:12px;color:#ff3b30\\'>⚠ Image indisponible</div>'">
+          <img src="${escHtml(m.img)}" style="width:100%;max-width:300px;border-radius:14px;display:block;cursor:pointer" onclick="safeOpen('${escJs(m.img)}')" onerror="this.outerHTML='<div style=\\'padding:12px;color:#ff3b30\\'>⚠ Image indisponible</div>'">
           ${m.text && m.text !== '📷 Photo' ? `<div style="padding:8px 10px 4px;font-size:14px">${escHtml(m.text)}</div>` : ''}
         </div>`;
     } else if (msgType === 'location') {
@@ -4708,8 +4753,14 @@ function renderMessages(conv) {
               <div style="font-size:13px;font-weight:700;color:#111">Position partagée</div>
               <div style="font-size:11px;color:#999;margin-top:2px">Cliquez pour ouvrir dans Maps</div>
             </div>
-            <button onclick="window.open('${escHtml(m.text || 'https://maps.google.com')}')" style="padding:8px 12px;border:none;border-radius:8px;background:#1677FF;color:#fff;font-size:12px;font-weight:700;cursor:pointer">🗺 Ouvrir</button>
+            <button onclick="safeOpen('${escJs(m.text || 'https://maps.google.com')}')" style="padding:8px 12px;border:none;border-radius:8px;background:#1677FF;color:#fff;font-size:12px;font-weight:700;cursor:pointer">🗺 Ouvrir</button>
           </div>
+        </div>`;
+    } else if (m.audio) {
+      bubbleHTML = `
+        <div class="msg-bubble" style="padding:8px 10px;min-width:200px">
+          <div style="font-size:12px;font-weight:700;margin-bottom:4px">🎤 Message vocal</div>
+          <audio controls preload="none" src="${escHtml(m.audio)}" style="width:100%;max-width:260px;height:36px"></audio>
         </div>`;
     } else if (m.file) {
       bubbleHTML = `
@@ -4727,14 +4778,14 @@ function renderMessages(conv) {
       bubbleHTML = `
         <div class="msg-bubble">
           ${escHtml(m.text)}
-          <button class="msg-translate-btn" onclick="event.stopPropagation();translateSingleMsg(this,'${escHtml(m.text).replace(/'/g,"\\'")}')" title="Traduire">🌐</button>
+          <button class="msg-translate-btn" onclick="event.stopPropagation();translateSingleMsg(this,'${escJs(m.text)}')" title="Traduire">🌐</button>
         </div>
         <div class="msg-auto-translate" id="translate_${i}" style="display:none"></div>`;
     }
 
     // Reactions (if any)
     const reactionsHTML = m.reactions && m.reactions.length ?
-      `<div class="msg-reactions">${m.reactions.map(r => `<span class="msg-reaction" onclick="toggleReaction(${i},'${r.emoji}')">${r.emoji} <span class="r-count">${r.count}</span></span>`).join('')}</div>` : '';
+      `<div class="msg-reactions">${m.reactions.map(r => `<span class="msg-reaction" onclick="toggleReaction(${i},'${escJs(r.emoji)}')">${r.emoji} <span class="r-count">${r.count}</span></span>`).join('')}</div>` : '';
 
     row.innerHTML = `
       ${!isMine ? `<div class="msg-av" style="background:${conv.color};font-size:12px">${conv.avatar || (conv.name||'V')[0]?.toUpperCase()}</div>` : ''}
@@ -4778,10 +4829,10 @@ function translateSingleMsg(btn, text) {
   popup.className = 'translate-popup';
   popup.style.cssText = 'position:absolute;right:10px;bottom:30px';
   popup.innerHTML = `
-    <button onclick="doTranslate(this,'${escHtml(text).replace(/'/g,"\\'")}','fr')">🇫🇷 Français</button>
-    <button onclick="doTranslate(this,'${escHtml(text).replace(/'/g,"\\'")}','en')">🇬🇧 English</button>
-    <button onclick="doTranslate(this,'${escHtml(text).replace(/'/g,"\\'")}','ln')">🇨🇩 Lingala</button>
-    <button onclick="doTranslate(this,'${escHtml(text).replace(/'/g,"\\'")}','sw')">🇰🇪 Swahili</button>`;
+    <button onclick="doTranslate(this,'${escJs(text)}','fr')">🇫🇷 Français</button>
+    <button onclick="doTranslate(this,'${escJs(text)}','en')">🇬🇧 English</button>
+    <button onclick="doTranslate(this,'${escJs(text)}','ln')">🇨🇩 Lingala</button>
+    <button onclick="doTranslate(this,'${escJs(text)}','sw')">🇰🇪 Swahili</button>`;
   btn.parentElement.appendChild(popup);
   setTimeout(() => { if (document.contains(popup)) popup.remove(); }, 5000);
 }
@@ -4832,16 +4883,12 @@ function msgSendLocation() {
         renderConvList();
         if (fbAuth.currentUser) {
           try {
-            fbDb.collection('chats').doc(conv.id).collection('messages').add({
+            pushChatToFirestore(conv, {
               text: locText, senderId: fbAuth.currentUser.uid,
               senderName: user?.name || fbAuth.currentUser?.displayName || 'Client',
               senderRole: 'buyer', type: 'location',
               timestamp: firebase.firestore.FieldValue.serverTimestamp(), read: false,
-            });
-            fbDb.collection('chats').doc(conv.id).set({
-              lastMessage: '📍 Position partagée',
-              updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-            }, { merge: true });
+            }, '📍 Position partagée');
           } catch(e) {}
         }
         toast('📍 Position envoyée au vendeur', '');
@@ -4911,8 +4958,17 @@ function startMsgListener(chatId) {
           msg.type = 'location';
         }
         if (data.fileUrl) {
-          msg.img = data.fileUrl;
-          if (!msg.type || msg.type === 'text') msg.type = 'image';
+          if (data.type === 'video') {
+            msg.video = data.fileUrl;
+            msg.type = 'video';
+          } else {
+            msg.img = data.fileUrl;
+            if (!msg.type || msg.type === 'text') msg.type = 'image';
+          }
+        }
+        if (data.audio) {
+          msg.audio = data.audio;
+          msg.type = 'audio';
         }
         newMsgs.push(msg);
       });
@@ -4929,30 +4985,42 @@ function startMsgListener(chatId) {
 
 async function migrateMsgsToFirestore(chatId, conv) {
   try {
-    const existing = await fbDb.collection('chats').doc(chatId).collection('messages').limit(1).get();
-    if (!existing.empty) return;
     const uid = fbAuth.currentUser?.uid || '';
+    if (!uid) return;
     const sellerId = conv.seller_id || '';
     const parts = conv.participants || (sellerId ? [uid, sellerId].filter(Boolean) : [uid]);
+    if (!parts.includes(uid)) parts.push(uid);
+    if (sellerId && !parts.includes(sellerId)) parts.push(sellerId);
+    // 1) Doc chat d'abord : la règle de lecture des messages exige un chat
+    //    existant dont l'utilisateur est participant.
     await fbDb.collection('chats').doc(chatId).set({
       participants: parts,
+      buyer_id: uid,
       seller_id: sellerId || null,
       lastMessage: conv.lastMsg || '',
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     }, { merge: true });
+    // 2) Migration seulement si le chat est vide côté Firestore
+    const existing = await fbDb.collection('chats').doc(chatId).collection('messages').limit(1).get();
+    if (!existing.empty) return;
     const batch = fbDb.batch();
+    let migrated = 0;
     conv.messages.forEach((m, i) => {
+      // Seuls les messages de l'acheteur connecté sont migrables :
+      // les messages "vendeur" locaux (faux auto-réponses) sont ignorés.
+      if (m.from !== 'buyer') return;
       if (m.img && m.img.startsWith('blob:')) return;
       if (m.video && m.video.startsWith('blob:')) return;
       const ref = fbDb.collection('chats').doc(chatId).collection('messages').doc();
       batch.set(ref, {
         text: m.text,
-        senderId: m.from === 'buyer' ? (uid || 'buyer_unknown') : (sellerId || 'seller_unknown'),
+        senderId: uid,
         timestamp: m.timestamp || (Date.now() - (conv.messages.length - i) * 60000),
         read: m.read || false,
       });
+      migrated++;
     });
-    await batch.commit();
+    if (migrated) await batch.commit();
   } catch(e) {
     // Firestore unavailable, keep localStorage
   }
@@ -4979,6 +5047,27 @@ function updateChatDoc(conv, lastText) {
   } catch(e) {}
 }
 
+// Écriture sûre d'une conversation : doc chat (participants/buyer/seller) AVANT le message.
+// La règle Firestore exige un chat existant avec l'utilisateur comme participant.
+function pushChatToFirestore(conv, msg, lastText) {
+  try {
+    if (!fbAuth.currentUser || !conv) return;
+    const uid = fbAuth.currentUser.uid;
+    const parts = Array.from(new Set([].concat(conv.participants || [], [uid], conv.seller_id ? [conv.seller_id] : [])));
+    conv.participants = parts;
+    const chatData = {
+      participants: parts,
+      buyer_id: uid,
+      lastMessage: lastText,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    };
+    if (conv.seller_id) chatData.seller_id = conv.seller_id;
+    fbDb.collection('chats').doc(conv.id).set(chatData, { merge: true })
+      .then(() => fbDb.collection('chats').doc(conv.id).collection('messages').add(msg))
+      .catch(e => console.warn('Firestore chat error:', e));
+  } catch(e) { console.warn('Firestore chat error:', e); }
+}
+
 function sendMsg() {
   const input = document.getElementById('msgInput');
   const text = input.value.trim();
@@ -5002,22 +5091,25 @@ function sendMsg() {
   // Push to Firestore
   if (fbAuth.currentUser) {
     try {
-      fbDb.collection('chats').doc(conv.id).collection('messages').add({
+      const chatParts = Array.from(new Set([].concat(conv.participants || [], [fbAuth.currentUser.uid], conv.seller_id ? [conv.seller_id] : [])));
+      conv.participants = chatParts;
+      fbDb.collection('chats').doc(conv.id).set({
+        participants: chatParts,
+        buyer_id: fbAuth.currentUser.uid,
+        seller_id: conv.seller_id || null,
+        lastMessage: text,
+        lastMessageSender: 'buyer',
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        unread_seller: firebase.firestore.FieldValue.increment(1),
+        buyer_name: buyerName,
+      }, { merge: true }).then(() => fbDb.collection('chats').doc(conv.id).collection('messages').add({
         text: text,
         senderId: fbAuth.currentUser.uid,
         senderName: buyerName,
         senderRole: 'buyer',
         timestamp: firebase.firestore.FieldValue.serverTimestamp(),
         read: false,
-      });
-      fbDb.collection('chats').doc(conv.id).set({
-        lastMessage: text,
-        lastMessageSender: 'buyer',
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-        unread_seller: firebase.firestore.FieldValue.increment(1),
-        buyer_id: fbAuth.currentUser.uid,
-        buyer_name: buyerName,
-      }, { merge: true });
+      })).catch(e => console.warn('sendMsg Firestore error:', e));
     } catch(e) { console.warn('sendMsg Firestore error:', e); }
   }
 }
@@ -5088,6 +5180,26 @@ function sendFile(input) {
   renderMessages(conv);
   renderConvList();
   input.value = '';
+
+  // Upload vers Cloudinary + envoi Firestore (sinon le vendeur ne reçoit rien)
+  if (fbAuth.currentUser) {
+    try {
+      cloudUpload(file, 'chats/' + conv.id).then(publicUrl => {
+        if (isImage) { msg.img = publicUrl; saveMsgConvs(); renderMessages(conv); }
+        pushChatToFirestore(conv, {
+          text: isImage ? '📷 Photo' : `📎 ${file.name}`,
+          senderId: fbAuth.currentUser.uid,
+          senderName: user?.name || fbAuth.currentUser?.displayName || 'Client',
+          senderRole: 'buyer',
+          type: isImage ? 'image' : 'file',
+          fileUrl: publicUrl,
+          fileName: file.name,
+          timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+          read: false,
+        }, msg.text);
+      }).catch(e => console.warn('File upload error:', e));
+    } catch(e) { console.warn('File send error:', e); }
+  }
 }
 
 function sendVideo(input) {
@@ -5128,6 +5240,26 @@ function sendVideo(input) {
     renderMessages(conv);
     renderConvList();
     input.value = '';
+
+    // Upload + envoi Firestore (sinon le vendeur ne la reçoit jamais)
+    if (fbAuth.currentUser) {
+      try {
+        cloudUpload(file, 'chats/' + conv.id).then(publicUrl => {
+          msg.video = publicUrl; saveMsgConvs(); renderMessages(conv);
+          pushChatToFirestore(conv, {
+            text: `🎬 Vidéo produit - ${productLabel}`,
+            senderId: fbAuth.currentUser.uid,
+            senderName: user?.name || fbAuth.currentUser?.displayName || 'Client',
+            senderRole: 'buyer',
+            type: 'video',
+            fileUrl: publicUrl,
+            productText: productLabel,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+            read: false,
+          }, `🎬 Vidéo produit - ${productLabel}`);
+        }).catch(e => console.warn('Video upload error:', e));
+      } catch(e) { console.warn('Video send error:', e); }
+    }
   };
   video.onerror = () => {
     toast('Impossible de lire la vidéo', 'error');
@@ -5317,7 +5449,7 @@ function toggleMic() {
     mr.onstop = function() {
       var blob = new Blob(chunks, { type: 'audio/webm' });
       var url = URL.createObjectURL(blob);
-      sendVoiceMsg(url);
+      sendVoiceMsg(url, blob);
       stream.getTracks().forEach(t => t.stop());
       msgMicRecording = false;
       micBtn.textContent = '🎤';
@@ -5333,7 +5465,7 @@ function toggleMic() {
   });
 }
 
-function sendVoiceMsg(url) {
+function sendVoiceMsg(url, blob) {
   var conv = msgConvs.find(c => c.id === msgCurrentId);
   if (!conv) return;
   var now = Date.now();
@@ -5343,6 +5475,28 @@ function sendVoiceMsg(url) {
   saveMsgConvs();
   renderMessages(conv);
   renderConvList();
+
+  // Synchronisation Firestore : upload du vocal puis message avec l'URL publique
+  if (fbAuth.currentUser && blob) {
+    try {
+      cloudUpload(blob, 'chats/' + conv.id).then(function(publicUrl) {
+        // remplace l'URL blob locale par l'URL téléchargeable
+        conv.messages[conv.messages.length - 1].audio = publicUrl;
+        saveMsgConvs();
+        renderMessages(conv);
+        pushChatToFirestore(conv, {
+          text: '🎤 Message vocal',
+          senderId: fbAuth.currentUser.uid,
+          senderName: user?.name || fbAuth.currentUser?.displayName || 'Client',
+          senderRole: 'buyer',
+          type: 'audio',
+          audio: publicUrl,
+          timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+          read: false,
+        }, '🎤 Message vocal');
+      }).catch(function(e) { console.warn('Voice upload error:', e); });
+    } catch(e) { console.warn('Voice sync error:', e); }
+  }
 }
 
 function contactSeller(product) {
@@ -5350,8 +5504,8 @@ function contactSeller(product) {
   if (!user_) { toast('Connectez-vous pour contacter le vendeur', 'error'); showSection('auth'); return; }
   const sellerId = product.vendeur_id || product.seller_id || '';
   const sellerName = product.seller_name || 'Vendeur';
-  const convId = sellerId ? ('c_' + sellerId) : ('c_' + sellerName.replace(/\s+/g,'').toLowerCase());
   const buyerUid = user_.uid;
+  const convId = (sellerId ? ('c_' + sellerId) : ('c_' + sellerName.replace(/\s+/g,'').toLowerCase())) + '_' + buyerUid;
   const buyerName = user?.name || user_.displayName || user_.email || 'Client';
   const productName = product.titre || product.name || 'produit';
   const productPrice = product.price || 0;
@@ -5380,7 +5534,7 @@ function contactSeller(product) {
   }
   saveMsgConvs();
 
-  // 2. Save to Firestore (so vendor can see it)
+  // 2. Save to Firestore (so vendor can see it) — chat doc d'abord, puis message
   try {
     fbDb.collection('chats').doc(convId).set({
       participants: [buyerUid, sellerId].filter(Boolean),
@@ -5393,15 +5547,14 @@ function contactSeller(product) {
       productImg: productImg,
       lastMessage: welcomeText,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-    }, { merge: true });
-    fbDb.collection('chats').doc(convId).collection('messages').add({
+    }, { merge: true }).then(() => fbDb.collection('chats').doc(convId).collection('messages').add({
       text: welcomeText,
       senderId: buyerUid,
       senderName: buyerName,
       senderRole: 'buyer',
       timestamp: firebase.firestore.FieldValue.serverTimestamp(),
       read: false,
-    });
+    })).catch(e => console.warn('Firestore chat save error:', e));
   } catch(e) { console.warn('Firestore chat save error:', e); }
 
   showSection('messages');
@@ -6069,9 +6222,7 @@ async function registerVendeur() {
     const cred = await fbAuth.createUserWithEmailAndPassword(email, pass);
     let idCardUrl = '';
     if (fileInput.files[0]) {
-      const ref = fbStorage.ref('vendeurs/'+cred.user.uid+'/id_card');
-      const snap = await ref.put(fileInput.files[0]);
-      idCardUrl = await snap.ref.getDownloadURL();
+      idCardUrl = await cloudUpload(fileInput.files[0], 'vendeurs/' + cred.user.uid);
     }
     const trialEnd = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
     const vData = { _id:cred.user.uid, full_name:name, company_name:comp, activity:act, email, phone, id_card:idCardUrl, subscription_status:'trial', plan:'trial', trial_ends_at:trialEnd, commission_rate:0, role:'vendeur', createdAt:fbServerTimestamp() };
@@ -6471,7 +6622,7 @@ function loadVendeurConversationsRealtime() {
   if (vendeurConvsUnsub) { vendeurConvsUnsub(); vendeurConvsUnsub = null; }
 
   vendeurConvsUnsub = fbDb.collection('chats')
-    .where('seller_id', '==', sellerUid)
+    .where('participants', 'array-contains', sellerUid)
     .onSnapshot((snap) => {
     try {
     const chats = [];
@@ -6589,6 +6740,25 @@ async function renderVendeurChatMessages(chatId, snap) {
           <div style="display:flex;gap:2px;margin:8px 0">${steps.map((s, idx) => '<div style="flex:1;height:4px;border-radius:2px;background:' + (idx < currentStep ? '#52C41A' : idx === currentStep ? '#1677FF' : '#e0e0e0') + '"></div>').join('')}</div>
           <div style="display:flex;justify-content:space-between;font-size:10px">${steps.map((s, idx) => '<span style="color:' + (idx <= currentStep ? '#52C41A' : '#ccc') + '">' + s + '</span>').join('')}</div>
         </div></div>`;
+    } else if (msgType === 'audio' || data.audio) {
+      bubble = `<div style="max-width:85%;padding:10px 14px;border-radius:16px;${isMine ? 'background:#2a7de1;color:#fff;border-bottom-right-radius:4px' : 'background:#f0f2f5;color:#1a2b3c;border-bottom-left-radius:4px'}">
+        <div style="font-size:12px;font-weight:700;margin-bottom:4px">🎤 Message vocal</div>
+        <audio controls preload="none" src="${escHtml(data.audio)}" style="width:100%;max-width:260px;height:36px"></audio>
+        <div style="font-size:10px;margin-top:4px;${isMine ? 'color:rgba(255,255,255,0.7)' : 'color:#888'}">${fmtTime(ts)}</div>
+      </div>`;
+    } else if (msgType === 'video' || data.video || (data.type === 'video' && data.fileUrl)) {
+      bubble = `<div style="max-width:85%;padding:4px;border-radius:16px;${isMine ? 'background:#2a7de1' : 'background:#f0f2f5'};overflow:hidden">
+        <video controls preload="metadata" src="${escHtml(data.video || data.fileUrl)}" style="width:100%;max-width:280px;border-radius:12px;display:block"></video>
+        ${data.text ? `<div style="padding:6px 10px;font-size:13px;${isMine ? 'color:#fff' : 'color:#1a2b3c'}">${escHtml(data.text)}</div>` : ''}
+        <div style="font-size:10px;padding:2px 10px 6px;${isMine ? 'color:rgba(255,255,255,0.7)' : 'color:#888'}">${fmtTime(ts)}</div>
+      </div>`;
+    } else if (msgType === 'image' || data.fileUrl || data.img) {
+      const mediaUrl = data.fileUrl || data.img;
+      bubble = `<div style="max-width:85%;padding:4px;border-radius:16px;${isMine ? 'background:#2a7de1' : 'background:#f0f2f5'};overflow:hidden">
+        <img src="${escHtml(mediaUrl)}" alt="" style="width:100%;max-width:280px;border-radius:12px;display:block;cursor:pointer" onclick="safeOpen('${escJs(mediaUrl)}')" onerror="this.style.display='none'">
+        ${data.text && data.text !== '📷 Photo' ? `<div style="padding:6px 10px;font-size:13px;${isMine ? 'color:#fff' : 'color:#1a2b3c'}">${escHtml(data.text)}</div>` : ''}
+        <div style="font-size:10px;padding:2px 10px 6px;${isMine ? 'color:rgba(255,255,255,0.7)' : 'color:#888'}">${fmtTime(ts)}</div>
+      </div>`;
     } else {
       bubble = `<div style="max-width:80%;padding:10px 14px;border-radius:16px;font-size:14px;line-height:1.4;${isMine ? 'background:#2a7de1;color:#fff;border-bottom-right-radius:4px' : 'background:#f0f2f5;color:#1a2b3c;border-bottom-left-radius:4px'}">
         ${escHtml(data.text)}
@@ -6624,7 +6794,14 @@ async function sendVendeurMsg() {
   input.value = '';
   const sellerName = vendeurUser.company_name || vendeurUser.full_name || 'Vendeur';
   try {
-    await fbDb.collection('chats').doc(vendeurCurrentChatId).collection('messages').add({
+    const chatRef = fbDb.collection('chats').doc(vendeurCurrentChatId);
+    await chatRef.set({
+      lastMessage: text,
+      lastMessageSender: 'seller',
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      unread_buyer: firebase.firestore.FieldValue.increment(1),
+    }, { merge: true });
+    await chatRef.collection('messages').add({
       text: text,
       senderId: fbAuth.currentUser.uid,
       senderName: sellerName,
@@ -6632,12 +6809,6 @@ async function sendVendeurMsg() {
       timestamp: firebase.firestore.FieldValue.serverTimestamp(),
       read: false,
     });
-    await fbDb.collection('chats').doc(vendeurCurrentChatId).set({
-      lastMessage: text,
-      lastMessageSender: 'seller',
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-      unread_buyer: firebase.firestore.FieldValue.increment(1),
-    }, { merge: true });
   } catch(e) {
     console.warn('sendVendeurMsg error:', e);
     toast('Erreur d\'envoi', 'error');
@@ -6927,13 +7098,13 @@ async function loadVendeurOrders() {
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         ${o.status !== 'preparation' && o.status !== 'shipped' && o.status !== 'delivered' && o.status !== 'cancelled' ?
-          `<button class="aisy-btn aisy-btn-sm" onclick="updateOrderStatus('${o._docId || o.id}','preparation')" style="font-size:11px;background:#2a7de1;padding:6px 12px">👨‍🔧 Préparer</button>` : ''}
+          `<button class="aisy-btn aisy-btn-sm" onclick="updateOrderStatus('${escJs(o._docId || o.id)}','preparation')" style="font-size:11px;background:#2a7de1;padding:6px 12px">👨‍🔧 Préparer</button>` : ''}
         ${o.status === 'preparation' ?
-          `<button class="aisy-btn aisy-btn-sm" onclick="updateOrderStatus('${o._docId || o.id}','shipped')" style="font-size:11px;background:#ff6a00;padding:6px 12px">🚚 Expédier</button>` : ''}
+          `<button class="aisy-btn aisy-btn-sm" onclick="updateOrderStatus('${escJs(o._docId || o.id)}','shipped')" style="font-size:11px;background:#ff6a00;padding:6px 12px">🚚 Expédier</button>` : ''}
         ${o.status === 'shipped' ?
-          `<button class="aisy-btn aisy-btn-sm" onclick="updateOrderStatus('${o._docId || o.id}','delivered')" style="font-size:11px;background:#00c853;padding:6px 12px">✅ Livrée</button>` : ''}
+          `<button class="aisy-btn aisy-btn-sm" onclick="updateOrderStatus('${escJs(o._docId || o.id)}','delivered')" style="font-size:11px;background:#00c853;padding:6px 12px">✅ Livrée</button>` : ''}
         ${o.status !== 'cancelled' && o.status !== 'delivered' ?
-          `<button class="aisy-btn aisy-btn-sm" onclick="updateOrderStatus('${o._docId || o.id}','cancelled')" style="font-size:11px;background:#ff3b30;padding:6px 12px">❌ Annuler</button>` : ''}
+          `<button class="aisy-btn aisy-btn-sm" onclick="updateOrderStatus('${escJs(o._docId || o.id)}','cancelled')" style="font-size:11px;background:#ff3b30;padding:6px 12px">❌ Annuler</button>` : ''}
       </div>
       <div style="font-size:11px;color:#aaa;margin-top:6px">📱 WhatsApp envoyé automatiquement au client</div>
     </div>`;
@@ -7095,9 +7266,9 @@ async function loadVendorProducts() {
           <div class="v-prod-price">${fmtPrice(p.price||0)}</div>
         </div>
         <div class="v-prod-actions">
-          <button class="edit-btn" onclick="toggleProdStatut('${p._id||p.id}')" title="Publier / Dépublier">${(p.statut||'publié')==='publié'?'📤':'📥'}</button>
-          <button class="edit-btn" onclick="showVendeurProduitModifier('${p._id||p.id}')" title="Modifier">✏️</button>
-          <button class="del-btn" onclick="deleteVendeurProduit('${p._id||p.id}')" title="Supprimer">🗑️</button>
+          <button class="edit-btn" onclick="toggleProdStatut('${escJs(p._id||p.id)}')" title="Publier / Dépublier">${(p.statut||'publié')==='publié'?'📤':'📥'}</button>
+          <button class="edit-btn" onclick="showVendeurProduitModifier('${escJs(p._id||p.id)}')" title="Modifier">✏️</button>
+          <button class="del-btn" onclick="deleteVendeurProduit('${escJs(p._id||p.id)}')" title="Supprimer">🗑️</button>
         </div>
       </div>
     `).join('');
@@ -7264,7 +7435,7 @@ async function loadVendeurProductEdit(id) {
         <div style="margin-top:4px;margin-bottom:8px;font-size:12px;color:#888">💡 Laissez les champs image vides pour utiliser une icône par défaut</div>
         <label for="vpVideo">🎬 Vidéo produit (URL)</label>
         <input class="aisy-input" id="vpVideo" placeholder="https://exemple.com/video.mp4" value="${escHtml(product.video||'')}">
-        ${product.video ? '<div style="margin:-6px 0 10px;font-size:12px;color:#00c853">✅ Vidéo actuelle : <a href="'+escHtml(product.video)+'" target="_blank" style="color:#2a7de1">voir ▶</a></div>' : '<div style="margin:-6px 0 10px;font-size:12px;color:#888">Laissez vide pour supprimer la vidéo</div>'}
+        ${product.video ? '<div style="margin:-6px 0 10px;font-size:12px;color:#00c853">✅ Vidéo actuelle : <a href="'+escHtml(product.video)+'" target="_blank" rel="noopener" onclick="if(!/^https?:\/\//i.test(this.href)){event.preventDefault();toast(\'Lien non autorisé\',\'error\')}" style="color:#2a7de1">voir ▶</a></div>' : '<div style="margin:-6px 0 10px;font-size:12px;color:#888">Laissez vide pour supprimer la vidéo</div>'}
         <label>Statut</label>
         <select class="aisy-input" id="vpStatus" style="cursor:pointer;margin-bottom:12px">
           <option value="publié" ${(product.statut||'publié')==='publié'?'selected':''}>✅ Publié</option>
@@ -7273,7 +7444,7 @@ async function loadVendeurProductEdit(id) {
         </select>
         <div style="display:flex;gap:8px;margin:8px 0">
           <button class="aisy-btn" type="submit" style="flex:1">💾 Enregistrer</button>
-          <button class="aisy-btn aisy-btn-outline" type="button" onclick="deleteVendeurProduit('${id}')" style="flex:1;color:#ff3b30;border-color:#ff3b30">🗑️ Supprimer</button>
+          <button class="aisy-btn aisy-btn-outline" type="button" onclick="deleteVendeurProduit('${escJs(id)}')" style="flex:1;color:#ff3b30;border-color:#ff3b30">🗑️ Supprimer</button>
         </div>
       </form>`;
   } catch(e) {
@@ -7285,6 +7456,34 @@ async function loadVendeurProductEdit(id) {
 function escHtml(str) {
   if (!str) return '';
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+}
+
+// Échappement pour JS inséré dans un attribut HTML onclick="...('${x}')".
+// escHtml ne suffit pas : &#039; est décodé par le parseur HTML AVANT l'exécution
+// du JS, ce qui laisse s'échapper un simple quote. Ici on échappe à la fois
+// le JS (backslash, quote simple) et le HTML (&, <, >, double quote).
+function escJs(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/\r/g, '')
+    .replace(/\n/g, '\\n');
+}
+
+// window.open sécurisé : seuls les schémas http/https sont ouverts
+// (bloque javascript:, data:, vbscript:…).
+function safeOpen(url) {
+  try {
+    const u = String(url == null ? '' : url).trim();
+    if (/^https?:\/\//i.test(u)) window.open(u, '_blank', 'noopener');
+    else if (/^(blob:|data:image\/)/i.test(u)) window.open(u, '_blank', 'noopener');
+    else toast('Lien non autorisé', 'error');
+  } catch(e) { /* noop */ }
 }
 
 function validateVideoDuration(input) {
@@ -7326,16 +7525,12 @@ async function uploadVendeurProduit(event) {
       const images = [];
       const imgFiles = fd.getAll('images').filter(f => f.name);
       for (const f of imgFiles) {
-        const ref = fbStorage.ref('products/'+prodId+'/images/'+f.name);
-        const snap = await ref.put(f);
-        images.push(await snap.ref.getDownloadURL());
+        images.push(await cloudUpload(f, 'products/' + prodId));
       }
       let videoUrl = null;
       const vf = fd.get('video');
       if (vf && vf.name) {
-        const ref = fbStorage.ref('products/'+prodId+'/video/'+vf.name);
-        const snap = await ref.put(vf);
-        videoUrl = await snap.ref.getDownloadURL();
+        videoUrl = await cloudUpload(vf, 'products/' + prodId);
       }
       const titre = fd.get('titre');
       const desc = fd.get('description')||'';
@@ -7624,7 +7819,7 @@ function renderPaySheet(subtotal) {
         <div style="font-size:14px;color:#888;margin-bottom:16px">Choisissez votre moyen de paiement</div>
         <div id="payOptions">
           ${operators.map(o => `
-            <div class="pay-option ${o.id === selectedOperator ? 'selected' : ''}" onclick="selectedOperator='${o.id}';renderPaySheet(${subtotal})">
+            <div class="pay-option ${o.id === selectedOperator ? 'selected' : ''}" onclick="selectedOperator='${escJs(o.id)}';renderPaySheet(${subtotal})">
               <div class="pay-icon" style="background:${bgColors[o.id] || '#f4f4f6'}">${o.icon}</div>
               <div class="pay-info">
                 <div class="pay-name">${o.name}</div>
@@ -7714,7 +7909,7 @@ function confirmPayNow() {
     if (data.success) {
       window._pendingPayment = { ref: data.reference, tx_ref: data.tx_ref, transaction_token: data.dpo_token || '', subtotal, orderId };
       if (data.payment_url) {
-        window.open(data.payment_url, '_blank');
+        safeOpen(data.payment_url);
       }
       showPaymentConfirmation(data, subtotal);
     } else {
@@ -8159,7 +8354,7 @@ function applyCatalogueFilter() {
     const pImg = (p.images && p.images[0]) || p.image || '';
     const hasImg = pImg && (pImg.startsWith('http') || pImg.startsWith('data:'));
     return `
-    <div class="aisy-card" onclick="showDetail(${allProducts.length ? 'allProducts.find(x=>x._id===' + JSON.stringify(p._id) + ')||p' : 'Object.assign({},p)'})">
+    <div class="aisy-card" onclick="showDetail(allProducts.find(x=>x._id==='${escJs(p._id)}')||p)">
       <div class="aisy-card-img">
         ${p.rating >= 4.8 ? '<span class="tag">⭐ Top</span>' : ''}
         ${hasImg
@@ -8209,7 +8404,7 @@ function renderAITrending() {
   }).slice(0, 8);
   const items = trending.length ? trending : sorted.slice(0, 8);
   el.innerHTML = items.map(p => `
-    <div class="hcard" onclick="showDetail(allProducts.find(x=>x._id==='${p._id}')||p)">
+    <div class="hcard" onclick="showDetail(allProducts.find(x=>x._id==='${escJs(p._id)}')||p)">
       <div class="hcard-img">
         ${p.image && (p.image.startsWith('http') || p.image.startsWith('data:'))
           ? `<img src="${p.image}" alt="${p.name}" loading="lazy">`
@@ -8294,7 +8489,7 @@ function renderAIBillboard() {
           <h3>${p.name}</h3>
           <div class="ai-price">${fmtPrice(p.price)}</div>
           <div class="ai-desc">${p.description || ''}</div>
-          <button onclick="showDetail(allProducts.find(x=>x._id==='${p._id}')||p);trackAIView('${p._id}')">🛒 Voir l'offre</button>
+          <button onclick="showDetail(allProducts.find(x=>x._id==='${escJs(p._id)}')||p);trackAIView('${escJs(p._id)}')">🛒 Voir l'offre</button>
         </div>
       </div>`;
     dotsHtml += `<div class="ai-dot${isActive ? ' active' : ''}" onclick="aiGoTo(${idx})"></div>`;
@@ -8552,7 +8747,7 @@ function aiSearch() {
     const pImg = (p.images && p.images[0]) || p.image || '';
     const hasImg = pImg && (pImg.startsWith('http') || pImg.startsWith('data:'));
     return `
-    <div class="aisy-card" onclick="showDetail(allProducts.find(x=>x._id==='${escHtml(p._id)}')||p);trackAIView('${escHtml(p._id)}')">
+    <div class="aisy-card" onclick="showDetail(allProducts.find(x=>x._id==='${escJs(p._id)}')||p);trackAIView('${escJs(p._id)}')">
       <div class="aisy-card-img">
         ${p.rating >= 4.8 ? '<span class="tag">⭐ Top</span>' : ''}
         ${hasImg
@@ -8588,7 +8783,7 @@ function renderAISuggestions() {
   // Fallback
   if (!suggestions.length) suggestions = ['📱 Smartphones', '🎧 Audio', '💻 Ordinateurs', '⌚ Accessoires', '👕 Mode'];
   chips.innerHTML = suggestions.slice(0, 6).map(s =>
-    `<div class="ai-s-chip" onclick="document.getElementById('aiQuery').value='${s.replace(/'/g, "\\'")}';aiSearch()">${s}</div>`
+    `<div class="ai-s-chip" onclick="document.getElementById('aiQuery').value='${escJs(s)}';aiSearch()">${escHtml(s)}</div>`
   ).join('');
 }
 

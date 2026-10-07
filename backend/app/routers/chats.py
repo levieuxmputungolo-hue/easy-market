@@ -209,6 +209,9 @@ async def mark_read(chat_id: str, current_user: dict = Depends(get_current_user)
         raise HTTPException(404, "Conversation non trouvée")
 
     uid = current_user["sub"]
+    if uid not in (chat.get("buyer_id"), chat.get("seller_id"), chat.get("participants", [])):
+        raise HTTPException(403, "Accès interdit")
+
     sender_role = "buyer" if uid == chat.get("buyer_id") else "seller"
     unread_field = "unread_seller" if sender_role == "buyer" else "unread_buyer"
 
