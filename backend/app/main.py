@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 from app.database import init_db, db
 from app.auth import decode_token
 from app.routers import products, users, orders, sellers, vendeurs, payments, chats, publicites, demands, notifications, admin
+from app import health
 from bson import ObjectId
 from datetime import datetime
 import os
@@ -79,6 +80,7 @@ app.include_router(publicites.router)
 app.include_router(demands.router)
 app.include_router(notifications.router)
 app.include_router(admin.router)
+app.include_router(health.router)
 
 # ─── Static files ───
 WEB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "web")
@@ -121,7 +123,16 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 # ─── Startup ───
 @app.on_event("startup")
 async def startup():
-    await init_db()
+    from app.database import MONGO_URI as _URI
+    if not _URI:
+        print("[ERREUR] MONGO_URI absente des variables d'environnement : API en 500 sur tout ce qui lit la base.")
+    else:
+        print(f"[BOOT] MONGO_URI definie (scheme={_URI.split('://', 1)[0]}) — verification de la connexion...")
+    ok = await init_db()
+    if ok is None:
+        print("[ERREUR] MongoDB INJOIGNABLE — les endpoints /api/products et /api/publicites renverront des erreurs.")
+    else:
+        print("[BOOT] MongoDB connecte.")
 
 
 # ═══════════════════════════════════════════════
