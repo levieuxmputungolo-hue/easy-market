@@ -2456,6 +2456,8 @@ fbAuth.onAuthStateChanged(u => {
     localStorage.removeItem('aisy_vendeur');
     renderAuth();
   }
+  // Une demande de contact produit était en attente : on la reprend seule
+  if (u && typeof reprendreContactSiAttente === 'function') reprendreContactSiAttente();
 });
 
 // ─── LANGUAGES ───
@@ -2622,7 +2624,12 @@ function toast(msg, type, ms) {
 }
 
 // ─── SECTIONS ───
+// Produit en attente de connexion (repris automatiquement après login)
+var contactEnAttente = null;
+
 function showSection(name) {
+  // Le produit en attente n'est conservé que pour l'écran de connexion
+  if (name !== 'auth') contactEnAttente = null;
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   const el = document.querySelector(`[data-section="${name}"]`);
   if (el) el.classList.add('active');
@@ -5146,6 +5153,13 @@ function sendMsg() {
   if (!text) return;
   const conv = msgConvs.find(c => c.id === msgCurrentId);
   if (!conv) return;
+  // Sans session Firebase le message ne part JAMAIS vers le vendeur
+  // (silencieusement perdu) : on demande la connexion au lieu de faire croire à un envoi.
+  if (!fbAuth.currentUser) {
+    contactEnAttente = null;
+    ouvrirFormulaireConnexion('Reconnectez-vous pour envoyer vos messages au vendeur');
+    return;
+  }
   input.value = '';
   const now = Date.now();
   const buyerName = user?.name || fbAuth.currentUser?.displayName || 'Client';
@@ -5571,9 +5585,55 @@ function sendVoiceMsg(url, blob) {
   }
 }
 
-function contactSeller(product) {
-  const user_ = fbAuth.currentUser;
-  if (!user_) { toast('Connectez-vous pour contacter le vendeur', 'error'); showSection('auth'); return; }
+// ─── CONTACT VENDEUR : session + reprise automatique ────────────────
+// 1) Au premier chargement, fbAuth.currentUser est encore null pendant
+//    quelques centaines de ms (restauration asynchrone de la session).
+//    Sans attente, un client DÉJÀ connecté se voyait refuser l'écriture
+//    au vendeur avec un « Connectez-vous pour contacter le vendeur ».
+// 2) Si aucune session n'existe, le produit est mémorisé : dès la
+//    connexion réussie, la conversation s'ouvre toute seule.
+function attendreSessionFirebase(delaiMs) {
+  if (fbAuth.currentUser) return Promise.resolve(fbAuth.currentUser);
+  return new Promise(function (resolve) {
+    var termine = false, unsub = null, to = null;
+    var fin = function (u) {
+      if (termine) return;
+      termine = true;
+      clearTimeout(to);
+      if (unsub) { try { unsub(); } catch (e) {} }
+      resolve(u || fbAuth.currentUser);
+    };
+    to = setTimeout(function () { fin(null); }, delaiMs || 1500);
+    try { unsub = fbAuth.onAuthStateChanged(function (u) { if (u) fin(u); }); }
+    catch (e) { fin(null); }
+  });
+}
+
+// Ouvre le formulaire de CONNEXION (jamais l'écran « Créer un compte »)
+function ouvrirFormulaireConnexion(message) {
+  showSection('auth');
+  try { switchAuthTab('client'); } catch (e) { authMode = 'client'; }
+  renderAuth(true);
+  if (message) toast(message, 'error');
+}
+
+function reprendreContactSiAttente() {
+  if (!contactEnAttente) return;
+  var p = contactEnAttente;
+  contactEnAttente = null;
+  setTimeout(function () { contactSeller(p); }, 600);
+}
+
+async function contactSeller(product) {
+  let user_ = fbAuth.currentUser;
+  if (!user_ && user) user_ = await attendreSessionFirebase(1500);
+  if (!user_) {
+    contactEnAttente = product;
+    ouvrirFormulaireConnexion(user
+      ? 'Session non synchronisée : reconnectez-vous pour envoyer votre message au vendeur'
+      : 'Connectez-vous pour contacter le vendeur');
+    return;
+  }
   const sellerId = product.vendeur_id || product.seller_id || '';
   const sellerName = product.seller_name || 'Vendeur';
   const buyerUid = user_.uid;
@@ -5737,13 +5797,13 @@ function switchAuthTab(mode) {
   renderAuth();
 }
 
-function renderAuth() {
+function renderAuth(forceLogin) {
   const el = document.getElementById('authContent');
   if (authMode === 'vendeur') {
     renderVendeurAuth(el);
     return;
   }
-  if (user) {
+  if (user && forceLogin !== true) {
     el.innerHTML = `
       <div class="aisy-auth-card" style="text-align:center;padding:28px 24px">
         <div style="width:72px;height:72px;border-radius:50%;background:#2a7de1;display:flex;align-items:center;justify-content:center;font-size:32px;color:#fff;margin:0 auto 12px;font-weight:700">${user.name[0]}</div>
@@ -5773,7 +5833,7 @@ function renderAuth() {
       <div style="text-align:center;margin-bottom:20px">
         <div style="font-size:48px;margin-bottom:6px">👋</div>
         <h2>Bienvenue</h2>
-        <p style="color:#888;font-size:14px;margin-top:4px">Connectez-vous pour commander</p>
+        <p style="color:#888;font-size:14px;margin-top:4px">${contactEnAttente ? '💬 Connectez-vous pour envoyer votre message au vendeur' : 'Connectez-vous pour commander'}</p>
       </div>
       <div class="aisy-auth-input-icon">
         <span class="input-icon">📧</span>
