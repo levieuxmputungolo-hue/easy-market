@@ -5614,6 +5614,16 @@ function ouvrirFormulaireConnexion(message) {
   showSection('auth');
   try { switchAuthTab('client'); } catch (e) { authMode = 'client'; }
   renderAuth(true);
+  // Compte deja connu sur l'appareil : l'email est pre-rempli,
+  // il ne reste que le mot de passe a saisir.
+  try {
+    if (user && user.email) {
+      const ie = document.getElementById('authEmail');
+      const ip = document.getElementById('authPass');
+      if (ie) ie.value = user.email;
+      if (ip) setTimeout(function () { try { ip.focus(); } catch (e) {} }, 150);
+    }
+  } catch (e) {}
   if (message) toast(message, 'error');
 }
 
@@ -5833,7 +5843,7 @@ function renderAuth(forceLogin) {
       <div style="text-align:center;margin-bottom:20px">
         <div style="font-size:48px;margin-bottom:6px">👋</div>
         <h2>Bienvenue</h2>
-        <p style="color:#888;font-size:14px;margin-top:4px">${contactEnAttente ? '💬 Connectez-vous pour envoyer votre message au vendeur' : 'Connectez-vous pour commander'}</p>
+        <p style="color:#888;font-size:14px;margin-top:4px">${contactEnAttente ? (user ? '🔁 Entre ton mot de passe pour synchroniser ton compte et envoyer ton message' : '💬 Connectez-vous pour envoyer votre message au vendeur') : 'Connectez-vous pour commander'}</p>
       </div>
       <div class="aisy-auth-input-icon">
         <span class="input-icon">📧</span>
@@ -5913,6 +5923,27 @@ function showRegister() {
     </form>`;
 }
 
+// Crée (ou recrée) le compte SUR LE SERVEUR pour un compte créé hors-ligne.
+// La session Firebase obtenue déclenche automatiquement la reprise de la
+// conversation en attente (hook onAuthStateChanged).
+async function creerCompteServeur(email, pass, nom) {
+  const cred = await fbAuth.createUserWithEmailAndPassword(email, pass);
+  const userData = { _id: cred.user.uid, name: nom || email, email, role: 'client', createdAt: fbServerTimestamp() };
+  try { await fbDb.collection('users').doc(cred.user.uid).set(userData); } catch (e) { console.warn('users write error:', e); }
+  user = userData;
+  localStorage.setItem('aisy_user', JSON.stringify(userData));
+  toast('✅ Compte synchronisé !');
+  renderAuth();
+}
+
+function gererErreurCreationCompte(e2) {
+  if (!e2) return;
+  if (e2.code === 'auth/email-already-in-use') toast('Mot de passe incorrect : ce compte existe déjà sur le serveur', 'error');
+  else if (e2.code === 'auth/weak-password') toast('Mot de passe trop court (6 caractères minimum)', 'error');
+  else if (e2.code === 'auth/invalid-email') toast('Adresse email invalide', 'error');
+  else { console.warn('create account error:', e2); toast('Erreur : ' + (e2.message || 'Impossible de créer le compte'), 'error'); }
+}
+
 async function login() {
   const email = document.getElementById('authEmail').value.trim();
   const pass = document.getElementById('authPass').value.trim();
@@ -5955,25 +5986,33 @@ async function login() {
     } else {
       const localUsers2 = JSON.parse(localStorage.getItem('aisy_registered_users') || '[]');
       const localMatch2 = localUsers2.find(u => u.email === email);
-      if (localMatch2 && (e.code === 'auth/user-not-found' || e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential')) {
+      const mauvaisMdp = (e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential');
+      const compteInconnu = (e.code === 'auth/user-not-found');
+      // On vient du bouton « Contacter » avec un compte créé hors-ligne qui
+      // n'existe pas encore sur le serveur : on propose sa création, puis la
+      // conversation reprend toute seule.
+      const enSync = !!(contactEnAttente && user && user.email === email);
+      if (localMatch2 && (compteInconnu || mauvaisMdp)) {
         const recover = confirm('Ce compte semble être un ancien compte hors-ligne.\nVoulez-vous créer un nouveau compte Firebase avec cet email pour pouvoir vous connecter sur ce téléphone ?');
         if (recover) {
-          try {
-            const cred = await fbAuth.createUserWithEmailAndPassword(email, pass);
-            const userData = { _id:cred.user.uid, name:localMatch2.name || email, email, role:'client', createdAt:fbServerTimestamp() };
-            await fbDb.collection('users').doc(cred.user.uid).set(userData);
-            user = userData;
-            localStorage.setItem('aisy_user', JSON.stringify(userData));
-            toast('✅ Compte récupéré !');
-            renderAuth();
-          } catch(e2) {
-            toast('Erreur : ' + e2.message, 'error');
-          }
+          try { await creerCompteServeur(email, pass, localMatch2.name || email); }
+          catch (e2) { gererErreurCreationCompte(e2); }
         } else {
           toast('Connectez-vous depuis votre ancien téléphone pour synchroniser vos données', 'error');
         }
+      } else if (enSync && (compteInconnu || mauvaisMdp)) {
+        const recover = confirm('Aucun compte sur le serveur ne correspond à cet email et à ce mot de passe.\nCréer le compte avec cet email pour envoyer votre message au vendeur ?');
+        if (recover) {
+          try { await creerCompteServeur(email, pass, user.name || email); }
+          catch (e2) { gererErreurCreationCompte(e2); }
+        } else {
+          toast('Entre le mot de passe choisi lors de ton inscription', 'error');
+        }
+      } else if (mauvaisMdp || compteInconnu) {
+        toast('Email ou mot de passe incorrect', 'error');
       } else {
-        toast('Erreur de connexion : ' + (e.message || 'Email ou mot de passe incorrect'), 'error');
+        console.warn('login error:', e);
+        toast('Erreur de connexion : ' + (e.message || 'Réessayez plus tard'), 'error');
       }
     }
   }
@@ -6261,7 +6300,15 @@ function resetPassword() {
     fbAuth.sendPasswordResetEmail(email).then(() => {
       toast('📧 Email de réinitialisation envoyé ! Vérifiez votre boîte de réception.');
     }).catch(e => {
-      if (e.code === 'auth/user-not-found') {
+      if (e.code === 'auth/user-not-found' && user && user.email === email) {
+        // Compte créé hors-ligne : il n'existe pas encore sur le serveur.
+        const np = prompt('Ce compte n\'existe pas encore sur le serveur.\nChoisissez un mot de passe (6 caractères minimum) pour l\'activer :');
+        if (np && np.length >= 6) {
+          creerCompteServeur(email, np, user.name || email).catch(gererErreurCreationCompte);
+        } else if (np) {
+          toast('Mot de passe trop court (6 caractères minimum)', 'error');
+        }
+      } else if (e.code === 'auth/user-not-found') {
         toast('Aucun compte trouvé avec cet email', 'error');
       } else {
         toast('Erreur : ' + (e.message || 'Impossible d\'envoyer l\'email de réinitialisation'), 'error');
