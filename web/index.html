@@ -5640,7 +5640,7 @@ async function contactSeller(product) {
   if (!user_) {
     contactEnAttente = product;
     ouvrirFormulaireConnexion(user
-      ? 'Session non synchronisée : reconnectez-vous pour envoyer votre message au vendeur'
+      ? '🔁 Active ton compte ci-dessous pour envoyer ton message (une seule fois)'
       : 'Connectez-vous pour contacter le vendeur');
     return;
   }
@@ -5813,6 +5813,11 @@ function renderAuth(forceLogin) {
     renderVendeurAuth(el);
     return;
   }
+  // Contact produit en attente + compte hors-ligne : écran d'activation dédié
+  if (contactEnAttente && user && !fbAuth.currentUser) {
+    renderAuthActivation(el);
+    return;
+  }
   if (user && forceLogin !== true) {
     el.innerHTML = `
       <div class="aisy-auth-card" style="text-align:center;padding:28px 24px">
@@ -5872,6 +5877,70 @@ function renderAuth(forceLogin) {
       </div>
       <div id="mfaVerifyArea" style="margin-top:14px"></div>
     </form>`;
+}
+
+// ─── ÉCRAN D'ACTIVATION (contact produit + compte hors-ligne) ───────
+// Le compte n'existe que sur l'appareil : la messagerie passe par le
+// serveur, il faut donc l'activer UNE FOIS. Quelle que soit la voie
+// choisie (mot de passe, création, Google, Apple), la conversation en
+// attente reprend automatiquement (hook onAuthStateChanged).
+function renderAuthActivation(el) {
+  const p = contactEnAttente || {};
+  const nomProduit = p.titre || p.name || 'le produit';
+  const vendeur = p.seller_name || p.vendeur_name || 'le vendeur';
+  el.innerHTML = `
+    <form class="aisy-auth-card" id="loginForm" onsubmit="event.preventDefault();login()" style="text-align:center">
+      <div style="font-size:46px;margin-bottom:2px">🔁</div>
+      <h2 style="margin:0">Activer la messagerie</h2>
+      <p style="color:#666;font-size:13.5px;line-height:1.55;margin:8px 0 14px;text-align:left">
+        Ton compte existe pour l'instant <strong>seulement sur ce téléphone</strong>.
+        Pour transmettre ton message au vendeur, il faut l'activer sur le serveur —
+        <strong>une seule fois</strong>, ensuite tout marche normalement.
+      </p>
+      <div style="background:#FFF3E0;border:1px solid #FFE0B2;border-radius:12px;padding:10px 12px;margin-bottom:14px;text-align:left;font-size:13px">
+        <div style="font-weight:700;margin-bottom:2px">💬 ${nomProduit}</div>
+        <div style="color:#7a5a00">Destinataire : ${vendeur}</div>
+      </div>
+      <div class="aisy-auth-input-icon">
+        <span class="input-icon">📧</span>
+        <input class="aisy-input" id="authEmail" type="email" placeholder="Email" autocomplete="email">
+      </div>
+      <div class="aisy-auth-input-icon">
+        <span class="input-icon">🔒</span>
+        <input class="aisy-input" id="authPass" type="password" placeholder="Ton mot de passe" autocomplete="current-password">
+      </div>
+      <div class="aisy-forgot-link">
+        <a onclick="resetPassword()">Je ne me souviens pas de mon mot de passe</a>
+      </div>
+      <button class="aisy-btn" type="submit">🔓 Se connecter et envoyer mon message</button>
+      <div class="aisy-auth-divider">ou, une seule fois</div>
+      <button class="aisy-btn" type="button" onclick="creerCompteDirecte()" style="background:#2a7de1">✨ Créer / activer mon compte maintenant</button>
+      <div class="aisy-auth-divider">ou continuer avec</div>
+      <div style="display:flex;gap:10px;margin:0">
+        <button class="aisy-btn" type="button" onclick="oauthLogin('google')" style="background:#fff;color:#333;box-shadow:0 2px 8px rgba(0,0,0,0.08);border:1px solid #e0e0e0;flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:12px"><span style="font-weight:500;font-size:14px">G&nbsp;&nbsp;Google</span></button>
+        <button class="aisy-btn" type="button" onclick="oauthLogin('apple')" style="background:#000;color:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.15);border:none;flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:12px"><span style="font-weight:500;font-size:14px">&#63743;&nbsp;&nbsp;Apple</span></button>
+      </div>
+      <div style="margin-top:14px">
+        <a onclick="annulerContactProduit()" style="color:#888;font-size:12.5px;text-decoration:underline;cursor:pointer">Annuler et revenir aux produits</a>
+      </div>
+    </form>`;
+}
+
+// Création directe du compte serveur (mot de passe choisi sur-le-champ)
+function creerCompteDirecte() {
+  const email = (document.getElementById('authEmail') && document.getElementById('authEmail').value.trim()) || (user && user.email) || '';
+  if (!email) { toast('Entre ton adresse email', 'error'); return; }
+  const pass = prompt('Choisis un mot de passe (6 caractères minimum) pour activer ton compte :');
+  if (pass === null) return;
+  if (pass.length < 6) { toast('Mot de passe trop court (6 caractères minimum)', 'error'); return; }
+  toast('⏳ Activation en cours…');
+  creerCompteServeur(email, pass, (user && user.name) || email)
+    .catch(gererErreurCreationCompte);
+}
+
+function annulerContactProduit() {
+  contactEnAttente = null;
+  showSection('accueil');
 }
 
 function showRegister() {
@@ -5938,7 +6007,7 @@ async function creerCompteServeur(email, pass, nom) {
 
 function gererErreurCreationCompte(e2) {
   if (!e2) return;
-  if (e2.code === 'auth/email-already-in-use') toast('Mot de passe incorrect : ce compte existe déjà sur le serveur', 'error');
+  if (e2.code === 'auth/email-already-in-use') toast('Ce compte existe déjà sur le serveur : utilise ton mot de passe, ou « Je ne me souviens pas de mon mot de passe »', 'error');
   else if (e2.code === 'auth/weak-password') toast('Mot de passe trop court (6 caractères minimum)', 'error');
   else if (e2.code === 'auth/invalid-email') toast('Adresse email invalide', 'error');
   else { console.warn('create account error:', e2); toast('Erreur : ' + (e2.message || 'Impossible de créer le compte'), 'error'); }
