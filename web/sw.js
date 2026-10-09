@@ -1,7 +1,5 @@
-const CACHE_NAME = 'easymarket-v11';
+const CACHE_NAME = 'easymarket-v12';
 const STATIC_ASSETS = [
-  '/',
-  '/index.html',
   '/manifest.json',
   '/assets/logo.svg',
   '/assets/icon-192.png',
@@ -34,6 +32,22 @@ self.addEventListener('fetch', function(e) {
   if (e.request.method !== 'GET') return;
 
   var url = e.request.url;
+
+  // Pages HTML (navigations) — RESEAU D'ABORD, cache en secours.
+  // Indispensable : une strategie cache-first sur index.html empeche
+  // l'utilisateur de voir les mises a jour du site.
+  if (e.request.mode === 'navigate' || e.request.destination === 'document') {
+    e.respondWith(
+      fetch(e.request).then(function(response) {
+        var clone = response.clone();
+        caches.open(CACHE_NAME).then(function(cache) { cache.put('/index.html', clone); });
+        return response;
+      }).catch(function() {
+        return caches.match('/index.html');
+      })
+    );
+    return;
+  }
 
   // Firestore — network first, cache fallback
   if (url.includes('firestore.googleapis.com') || url.includes('firebaseio.com')) {
@@ -86,9 +100,6 @@ self.addEventListener('fetch', function(e) {
         caches.open(CACHE_NAME).then(function(cache) { cache.put(e.request, clone); });
         return response;
       }).catch(function() {
-        if (e.request.destination === 'document') {
-          return caches.match('/index.html');
-        }
         return new Response('', { status: 503, statusText: 'Offline' });
       });
     })
