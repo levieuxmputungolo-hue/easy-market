@@ -1095,14 +1095,20 @@
       .chat-header .ch-avatar { width:38px; height:38px; font-size:15px; }
       .chat-header .ch-name { font-size:14px; }
       .chat-header .ch-action { width:32px; height:32px; font-size:15px; }
-      .msg-messages { padding:10px 12px; gap:6px; }
+      .msg-messages { padding:10px 12px 90px; gap:6px; }
       .msg-row { max-width:85%; gap:6px; }
       .msg-row .msg-av { width:28px; height:28px; font-size:11px; }
       .msg-row .msg-bubble { font-size:14px; padding:10px 14px; border-radius:16px; }
       .msg-row .msg-sender { font-size:10px; }
       .msg-row .msg-footer { font-size:9px; }
-      #chatInputBar { bottom:60px; padding:6px 10px; z-index:90; padding-bottom:calc(6px + env(safe-area-inset-bottom,0px)); }
+      /* Barre de saisie : TOUJOURS au-dessus de la conversation (z-index 100)
+         et collée au bas de l'ecran (la barre de navigation est masquee). */
+      #chatInputBar { bottom:0; padding:6px 10px; z-index:130; padding-bottom:calc(6px + env(safe-area-inset-bottom,0px)); }
       #chatInputBar.ios-keyboard { bottom:0; padding-bottom:6px; }
+      .msg-show-chat ~ #chatInputBar { bottom:0; }
+      /* Hauteur de la barre reservee : les chips rapides restent au-dessus */
+      #msgChatContent { padding-bottom:64px; }
+      .quick-chips { padding:6px 10px; border-top:1px solid #f0f0f0; background:#fff; }
       .chat-input-row { gap:6px; }
       .cib-plus-btn { width:38px; height:38px; font-size:18px; }
       .cib-send-btn { width:38px; height:38px; font-size:16px; }
@@ -1111,19 +1117,22 @@
     @media (min-width:480px) and (max-width:767px) {
       .msg-conv-item .m-preview { max-width:220px; }
     }
+    /* Desktop : la section occupe exactement l'espace sous le header
+       (--aisy-header-h calcule en JS), avec 130px reserves en bas
+       pour le composeur (70px du haut) + la barre de navigation. */
     @media (min-width:768px) and (max-width:1023px) {
-      #sectionMessages.section { height:calc(100vh - 100px); padding-bottom:0; }
-      .msg-layout { height:calc(100vh - 100px); margin:0 12px; }
+      #sectionMessages.section { height:calc(100vh - var(--aisy-header-h, 60px)); }
+      .msg-layout { height:100%; margin:0 12px; }
       .msg-sidebar { width:280px; }
     }
     @media (min-width:1024px) and (max-width:1279px) {
-      #sectionMessages.section { height:calc(100vh - 120px); }
-      .msg-layout { height:calc(100vh - 120px); margin:0 24px; }
+      #sectionMessages.section { height:calc(100vh - var(--aisy-header-h, 60px)); }
+      .msg-layout { height:100%; margin:0 24px; }
       .msg-sidebar { width:320px; }
     }
     @media (min-width:1280px) {
-      #sectionMessages.section { height:calc(100vh - 120px); }
-      .msg-layout { height:calc(100vh - 120px); margin:0 auto; max-width:1200px; }
+      #sectionMessages.section { height:calc(100vh - var(--aisy-header-h, 60px)); }
+      .msg-layout { height:100%; margin:0 auto; max-width:1200px; }
       .msg-sidebar { width:360px; }
     }
     .aisy-overlay {
@@ -1606,6 +1615,13 @@
     /* Section padding for each section */
     .section { padding-bottom: 80px; }
     #sectionMessages.section { padding-bottom: 0; }
+    @media (min-width: 768px) {
+      /* 130px reserves en bas : composeur (haut a 70px) + barre de nav (69px) */
+      #sectionMessages.section { padding-bottom: 130px; }
+      /* Le composeur est place JUSTE au-dessus de la barre de navigation
+         et au-dessus d'elle en z-index (sinon la nav le recouvrait). */
+      #chatInputBar { bottom: 70px; z-index: 120; }
+    }
     #sectionCart .aisy-cart-wrap { padding: 0 16px 120px; }
     .aisy-orders-wrap { padding: 0 16px; }
     #authContent .v-nav, #authContent > .v-stats-grid,
@@ -2625,6 +2641,7 @@ function showSection(name) {
   else {
     if (typeof stopMsgListener === 'function') stopMsgListener();
     document.getElementById('msgLayout')?.classList.remove('msg-show-chat');
+    document.body.classList.remove('msg-show-chat');
     var cib=document.getElementById('chatInputBar'); if(cib) cib.style.display='none';
     var hdr=document.getElementById('msgChatHeader'); if(hdr){hdr.className='msg-chat-header';hdr.innerHTML='';}
     var spc=document.getElementById('sellerProductCard'); if(spc){spc.style.display='none';spc.innerHTML='';}
@@ -4184,11 +4201,20 @@ function renderConvList() {
   return renderFilteredConvList();
 }
 
+function closeConv() {
+  document.getElementById('msgLayout')?.classList.remove('msg-show-chat');
+  document.body.classList.remove('msg-show-chat');
+  const cib = document.getElementById('chatInputBar');
+  if (cib) { cib.style.display = 'none'; cib.style.bottom = ''; cib.style.zIndex = ''; }
+  msgCurrentId = null;
+}
+
 function openConv(id) {
   msgCurrentId = id;
   const conv = msgConvs.find(c => c.id === id);
   if (!conv) return;
   document.getElementById('msgLayout')?.classList.add('msg-show-chat');
+  document.body.classList.add('msg-show-chat');   // masque la barre de navigation mobile
   document.getElementById('chatInputBar').style.display = 'block';
   conv.unread = 0;
   saveMsgConvs();
@@ -4215,7 +4241,7 @@ function showChatView(conv) {
   // === CHAT HEADER (Alibaba white style) ===
   const header = document.getElementById('chatHeader');
   header.innerHTML = `
-    <button class="ch-back" onclick="document.getElementById('msgLayout').classList.remove('msg-show-chat');document.getElementById('chatInputBar').style.display='none'">◀</button>
+    <button class="ch-back" onclick="closeConv()">◀</button>
     <div class="ch-avatar" style="background:${conv.color || '#2a7de1'}">
       ${conv.avatar || (conv.name||'V')[0]?.toUpperCase()}
       <span class="ch-online" style="background:${conv.online ? '#52C41A' : '#bbb'}"></span>
@@ -5609,6 +5635,25 @@ function autoResize(el) {
   el.style.height = Math.min(el.scrollHeight, 80) + 'px';
 }
 
+// Hauteur reelle du header -> variable CSS --aisy-header-h
+// (utilisee par le CSS desktop pour placer la section Messages
+//  exactement sous le header et le composeur au-dessus de la nav)
+function majHauteurHeader() {
+  var h = document.querySelector('.aisy-header');
+  if (h && h.offsetHeight > 0) {
+    document.documentElement.style.setProperty('--aisy-header-h', h.offsetHeight + 'px');
+  }
+}
+majHauteurHeader();
+document.addEventListener('DOMContentLoaded', majHauteurHeader);
+window.addEventListener('resize', majHauteurHeader);
+window.addEventListener('orientationchange', majHauteurHeader);
+if (window.ResizeObserver) {
+  document.addEventListener('DOMContentLoaded', function () {
+    try { new ResizeObserver(majHauteurHeader).observe(document.body); } catch (e) {}
+  });
+}
+
 // Search conversations
 document.addEventListener('DOMContentLoaded', () => {
   const searchInput = document.getElementById('msgConvSearch');
@@ -5636,7 +5681,8 @@ document.addEventListener('DOMContentLoaded', () => {
           cib.style.paddingBottom = '8px';
         } else if (diff < -100) {
           // Keyboard closed - restore
-          cib.style.bottom = '60px';
+          // Mobile : la barre de navigation est masquee dans le chat -> collée en bas
+          cib.style.bottom = (window.innerWidth <= 767) ? '0px' : '60px';
           cib.style.paddingBottom = '';
         }
         lastVH = vh;
