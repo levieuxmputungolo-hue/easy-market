@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from app.database import init_db, db
+from app.database import init_db, db, DatabaseUnavailable
 from app.auth import decode_token
 from app.routers import products, users, orders, sellers, vendeurs, payments, chats, publicites, demands, notifications, admin
 from app import health
@@ -120,19 +120,41 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     )
 
 
+@app.exception_handler(DatabaseUnavailable)
+async def db_unavailable_handler(request: Request, exc: DatabaseUnavailable):
+    """Base de donnees injoignable : reponse claire en francais (503)."""
+    return JSONResponse(
+        status_code=503,
+        content={
+            "detail": "Base de donnees temporairement indisponible. Reessayez dans quelques instants.",
+            "hint": "Voir /api/health pour le diagnostic",
+        },
+    )
+
+
 # ─── Startup ───
 @app.on_event("startup")
 async def startup():
-    from app.database import MONGO_URI as _URI
+    """Ne JAMAIS bloquer le demarrage sur MongoDB : connexion en tache de fond.
+
+    Render ouvre le port immediatement ; la base se branche ensuite et les
+    endpoints 503 le temps de la connexion passent en 200 automatiquement.
+    """
+    from app.database import MONGO_URI as _URI, init_db as _init
+    import asyncio as _aio
     if not _URI:
         print("[ERREUR] MONGO_URI absente des variables d'environnement : API en 500 sur tout ce qui lit la base.")
     else:
-        print(f"[BOOT] MONGO_URI definie (scheme={_URI.split('://', 1)[0]}) — verification de la connexion...")
-    ok = await init_db()
-    if ok is None:
-        print("[ERREUR] MongoDB INJOIGNABLE — les endpoints /api/products et /api/publicites renverront des erreurs.")
-    else:
-        print("[BOOT] MongoDB connecte.")
+        print(f"[BOOT] MONGO_URI definie (scheme={_URI.split('://', 1)[0]}) — connexion en arriere-plan...")
+
+    async def _connect():
+        ok = await _init()
+        if ok is None:
+            print("[ERREUR] MongoDB INJOIGNABLE — /api/products et /api/publicites renvoient 503 (voir /api/health).")
+        else:
+            print("[BOOT] MongoDB connecte.")
+
+    _aio.create_task(_connect())
 
 
 # ═══════════════════════════════════════════════

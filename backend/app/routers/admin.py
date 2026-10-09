@@ -28,7 +28,7 @@ VENDORS = [
 
 @router.post("/api/admin/seed-vendors")
 async def seed_vendors(admin: dict = Depends(require_role("admin")), _token: bool = Depends(verify_admin)):
-    if db is None:
+    if not db.available:
         return {"error": "MongoDB non disponible"}
     count = 0
     for v in VENDORS:
