@@ -1383,7 +1383,7 @@
       position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
       padding: 14px 24px; border-radius: 14px; font-size: 14px; font-weight: 600;
       z-index: 999; opacity: 0; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      pointer-events: none; white-space: nowrap;
+      pointer-events: none; white-space: normal; max-width: 92vw; text-align: center; overflow-wrap: anywhere;
       backdrop-filter: blur(10px);
     }
     .aisy-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
@@ -2595,13 +2595,13 @@ function fmtPrice(v) {
 }
 
 // ─── TOAST ───
-function toast(msg, type) {
+function toast(msg, type, ms) {
   const el = document.getElementById('topToast');
   el.textContent = msg;
   el.style.background = type === 'error' ? 'rgba(211,47,47,0.95)' : 'rgba(50,50,50,0.92)';
   el.classList.add('show');
   clearTimeout(el._t);
-  el._t = setTimeout(() => el.classList.remove('show'), 2400);
+  el._t = setTimeout(() => el.classList.remove('show'), ms || 2400);
 }
 
 // ─── SECTIONS ───
@@ -3111,27 +3111,70 @@ function doSearch() {
   renderProducts(q || undefined, q);
 }
 
+let _voiceBusy = false;
 function startVoiceSearch() {
   const btn = document.getElementById('voiceBtn');
+  const input = document.getElementById('searchInput');
+  const iconMic = '<i class="fas fa-microphone"></i>';
+  const iconRec = '<i class="fas fa-circle" style="color:#ff3b30"></i>';
+
   if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-    toast('Recherche vocale non disponible sur cet appareil', 'error');
+    toast('Recherche vocale indisponible sur ce navigateur (Firefox/Safari). Utilisez le clavier.', 'error');
+    if (input) input.focus();
     return;
   }
+  if (_voiceBusy) return;              // evite le "InvalidStateError" si on double-clique
+  _voiceBusy = true;
+
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const rec = new SR();
-  rec.lang = 'fr-FR';
+  rec.lang = (navigator.language || 'fr-FR').split('-')[0] === 'fr' ? 'fr-FR' : (navigator.language || 'fr-FR');
   rec.continuous = false;
   rec.interimResults = false;
-  btn.innerHTML = '<i class="fas fa-circle" style="color:#ff3b30"></i>';
+
+  let gotResult = false;
+  if (btn) btn.innerHTML = iconRec;
+
+  const restore = () => { if (btn) btn.innerHTML = iconMic; _voiceBusy = false; };
+
   rec.onresult = (e) => {
-    const txt = e.results[0][0].transcript;
-    document.getElementById('searchInput').value = txt;
-    btn.innerHTML = '<i class="fas fa-microphone"></i>';
+    gotResult = true;
+    const txt = (e.results[0][0].transcript || '').trim();
+    restore();
+    if (!txt) { toast('Je n\'ai rien compris, réessayez', 'error'); return; }
+    if (input) input.value = txt;
     doSearch();
   };
-  rec.onerror = () => { btn.innerHTML = '<i class="fas fa-microphone"></i>'; toast('Erreur de reconnaissance vocale', 'error'); };
-  rec.onend = () => { btn.innerHTML = '<i class="fas fa-microphone"></i>'; };
-  rec.start();
+
+  rec.onerror = (e) => {
+    restore();
+    const code = (e && e.error) || '';
+    if (code === 'not-allowed' || code === 'service-not-allowed') {
+      toast('Micro bloqué : cliquez sur le cadenas 🔒 à gauche de l\'adresse → Micro → Autoriser, puis réessayez.', 'error', 6000);
+    } else if (code === 'audio-capture') {
+      toast('Aucun micro détecté sur cet appareil', 'error');
+    } else if (code === 'network') {
+      toast('Service de reconnaissance vocale injoignable (connexion). Réessayez.', 'error');
+    } else if (code === 'no-speech') {
+      toast('Aucune parole détectée, réessayez', 'error');
+    } else if (code === 'language-not-supported') {
+      toast('Langue non prise en charge : ' + rec.lang, 'error');
+    } else if (code !== 'aborted') {
+      toast('Erreur de reconnaissance vocale' + (code ? ' (' + code + ')' : ''), 'error');
+    }
+  };
+
+  rec.onend = () => {
+    restore();
+    if (!gotResult) toast('Je n\'ai rien entendu : maintenez le bouton et parlez clairement.', 'error', 4000);
+  };
+
+  try {
+    rec.start();
+  } catch (err) {
+    restore();
+    toast('Impossible de démarrer le micro : ' + (err.message || err), 'error');
+  }
 }
 
 function notifySellerDemand(query) {
