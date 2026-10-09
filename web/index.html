@@ -1105,7 +1105,6 @@
          et collée au bas de l'ecran (la barre de navigation est masquee). */
       #chatInputBar { bottom:0; padding:6px 10px; z-index:130; padding-bottom:calc(6px + env(safe-area-inset-bottom,0px)); }
       #chatInputBar.ios-keyboard { bottom:0; padding-bottom:6px; }
-      .msg-show-chat ~ #chatInputBar { bottom:0; }
       /* Hauteur de la barre reservee : les chips rapides restent au-dessus */
       #msgChatContent { padding-bottom:64px; }
       .quick-chips { padding:6px 10px; border-top:1px solid #f0f0f0; background:#fff; }
@@ -1121,17 +1120,17 @@
        (--aisy-header-h calcule en JS), avec 130px reserves en bas
        pour le composeur (70px du haut) + la barre de navigation. */
     @media (min-width:768px) and (max-width:1023px) {
-      #sectionMessages.section { height:calc(100vh - var(--aisy-header-h, 60px)); }
+      #sectionMessages.section { height:calc(100vh - var(--aisy-msg-top, var(--aisy-header-h, 60px))); }
       .msg-layout { height:100%; margin:0 12px; }
       .msg-sidebar { width:280px; }
     }
     @media (min-width:1024px) and (max-width:1279px) {
-      #sectionMessages.section { height:calc(100vh - var(--aisy-header-h, 60px)); }
+      #sectionMessages.section { height:calc(100vh - var(--aisy-msg-top, var(--aisy-header-h, 60px))); }
       .msg-layout { height:100%; margin:0 24px; }
       .msg-sidebar { width:320px; }
     }
     @media (min-width:1280px) {
-      #sectionMessages.section { height:calc(100vh - var(--aisy-header-h, 60px)); }
+      #sectionMessages.section { height:calc(100vh - var(--aisy-msg-top, var(--aisy-header-h, 60px))); }
       .msg-layout { height:100%; margin:0 auto; max-width:1200px; }
       .msg-sidebar { width:360px; }
     }
@@ -1816,20 +1815,6 @@
         </div>
       </div>
     </div>
-    <!-- INPUT BAR -->
-    <div id="chatInputBar" style="display:none">
-      <div class="chat-input-row">
-        <button class="cib-plus-btn" onclick="showAttachmentMenu()" title="Joindre">+</button>
-        <div class="cib-input-wrap">
-          <textarea id="msgInput" rows="1" placeholder="Tapez un message..." oninput="autoResize(this)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg()}"></textarea>
-        </div>
-        <button class="cib-emoji-btn" onclick="toggleEmojiPicker()" title="Emoji">😊</button>
-        <button class="cib-gallery-btn" onclick="document.getElementById('msgFile').click()" title="Galerie">🖼</button>
-        <button class="cib-send-btn" onclick="sendMsg()" title="Envoyer">➤</button>
-      </div>
-      <input type="file" id="msgFile" style="display:none" accept="image/*,.pdf,.doc,.docx" onchange="sendFile(this)">
-      <input type="file" id="msgVideo" style="display:none" accept="video/*" onchange="sendVideo(this)">
-    </div>
   </section>
 
   <!-- SECTION CART -->
@@ -2335,6 +2320,22 @@
       <span class="nav-label" data-lang="profil">Profil</span>
     </button>
   </nav>
+
+  <!-- INPUT BAR (hors section : position:fixed, evite le decalage
+       transitoire cause par l'animation transform des sections) -->
+  <div id="chatInputBar" style="display:none">
+    <div class="chat-input-row">
+      <button class="cib-plus-btn" onclick="showAttachmentMenu()" title="Joindre">+</button>
+      <div class="cib-input-wrap">
+        <textarea id="msgInput" rows="1" placeholder="Tapez un message..." oninput="autoResize(this)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg()}"></textarea>
+      </div>
+      <button class="cib-emoji-btn" onclick="toggleEmojiPicker()" title="Emoji">😊</button>
+      <button class="cib-gallery-btn" onclick="document.getElementById('msgFile').click()" title="Galerie">🖼</button>
+      <button class="cib-send-btn" onclick="sendMsg()" title="Envoyer">➤</button>
+    </div>
+    <input type="file" id="msgFile" style="display:none" accept="image/*,.pdf,.doc,.docx" onchange="sendFile(this)">
+    <input type="file" id="msgVideo" style="display:none" accept="video/*" onchange="sendVideo(this)">
+  </div>
 </div>
 
 <script>
@@ -2626,6 +2627,8 @@ function showSection(name) {
   const el = document.querySelector(`[data-section="${name}"]`);
   if (el) el.classList.add('active');
   document.querySelectorAll('.aisy-nav-item').forEach(b => b.classList.toggle('active', b.dataset.target === name));
+  // Recalcule les variables CSS de hauteur (header + haut de section Messages)
+  if (typeof majHauteurHeader === 'function') requestAnimationFrame(majHauteurHeader);
   var helpFab = document.querySelector('.help-fab');
   if (helpFab) helpFab.style.display = (name === 'messages' || name === 'ia') ? 'none' : 'flex';
   if (name === 'accueil') {
@@ -5642,6 +5645,12 @@ function majHauteurHeader() {
   var h = document.querySelector('.aisy-header');
   if (h && h.offsetHeight > 0) {
     document.documentElement.style.setProperty('--aisy-header-h', h.offsetHeight + 'px');
+  }
+  // Haut reel de la section Messages (peut diffuser du header : marge, bandeau...)
+  var sec = document.getElementById('sectionMessages');
+  if (sec && sec.offsetHeight > 0) {
+    var haut = sec.getBoundingClientRect().top + (window.scrollY || window.pageYOffset || 0);
+    document.documentElement.style.setProperty('--aisy-msg-top', Math.round(haut) + 'px');
   }
 }
 majHauteurHeader();
