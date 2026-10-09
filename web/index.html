@@ -761,26 +761,47 @@
     /* ─── PRODUCT CONTEXT BANNER ─── */
     .product-context-banner {
       background:linear-gradient(135deg, #fff 0%, #fafbff 100%);
-      border-bottom:1px solid #f0f0f0; padding:10px 16px;
+      border-bottom:1px solid #f0f0f0; padding:9px 14px;
       display:flex; align-items:center; gap:12px; flex-shrink:0;
       cursor:pointer; transition:background .2s;
     }
     .product-context-banner:hover { background:#f0f4ff; }
+    .pcb-full { display:flex; align-items:center; gap:12px; width:100%; min-width:0; }
+    .pcb-mini { display:none; align-items:center; gap:8px; width:100%; min-width:0;
+      font-size:12.5px; color:#444; }
+    .product-context-banner.pcb-collapsed { padding:6px 14px; background:#f7f9ff; }
+    .product-context-banner.pcb-collapsed .pcb-full { display:none; }
+    .product-context-banner.pcb-collapsed .pcb-mini { display:flex; }
+    .pcb-mini-txt { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis;
+      white-space:nowrap; font-weight:600; }
+    .pcb-mini-price { font-weight:800; color:#E11D48; flex-shrink:0; }
     .pcb-img {
-      width:52px; height:52px; border-radius:10px; object-fit:cover;
+      width:48px; height:48px; border-radius:10px; object-fit:cover;
       border:1px solid #f0f0f0; flex-shrink:0; background:#f5f5f5;
-      display:flex; align-items:center; justify-content:center; font-size:22px;
+      display:flex; align-items:center; justify-content:center; font-size:20px;
     }
     .pcb-info { flex:1; min-width:0; }
     .pcb-title { font-size:13px; font-weight:700; color:#111; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .pcb-price { font-size:16px; font-weight:800; color:#FF4D4F; margin-top:2px; }
-    .pcb-meta { font-size:11px; color:#999; margin-top:1px; }
+    .pcb-line { display:flex; align-items:baseline; gap:8px; margin-top:3px; min-width:0; }
+    .pcb-price { font-size:19px; font-weight:800; color:#E11D48; letter-spacing:-.3px; flex-shrink:0; }
+    .pcb-meta { font-size:10.5px; color:#98a0a8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .pcb-btn {
-      padding:6px 14px; border-radius:8px; border:none;
-      font-size:12px; font-weight:700; cursor:pointer; transition:all .2s;
+      padding:11px 20px; border-radius:12px; border:none;
+      font-size:13.5px; font-weight:800; cursor:pointer; transition:all .15s;
       background:#1677FF; color:#fff; flex-shrink:0;
+      box-shadow:0 3px 10px rgba(22,119,255,.30);
+      min-height:42px; letter-spacing:.2px;
     }
-    .pcb-btn:hover { background:#0958d9; }
+    .pcb-btn:hover { background:#0958d9; transform:translateY(-1px); box-shadow:0 5px 14px rgba(22,119,255,.36); }
+    .pcb-btn:active { transform:scale(.96); background:#0a4bb5; box-shadow:0 1px 4px rgba(22,119,255,.30); }
+    .pcb-btn[disabled] { opacity:.75; cursor:wait; transform:none; }
+    .pcb-toggle {
+      width:30px; height:30px; border-radius:50%; border:none; flex-shrink:0;
+      background:#eaeef4; color:#667085; font-size:12px; cursor:pointer;
+      display:flex; align-items:center; justify-content:center; transition:all .15s;
+    }
+    .pcb-toggle:hover { background:#dfe7f3; color:#1677FF; }
+    .pcb-toggle:active { transform:scale(.9); }
 
     /* ─── MESSAGES AREA ─── */
     .msg-messages {
@@ -835,8 +856,9 @@
       box-shadow:0 1px 3px rgba(0,0,0,0.06);
     }
     .msg-row.outgoing .msg-bubble {
-      background:#FFE7A3; color:#1a1a1a; border-radius:18px 18px 4px 18px;
-      box-shadow:0 1px 3px rgba(0,0,0,0.04);
+      background:#FFE08A; color:#111; border-radius:18px 18px 4px 18px;
+      border:1px solid rgba(226,180,60,.55);
+      box-shadow:0 1px 3px rgba(0,0,0,0.06);
     }
 
     /* Auto-translation text under bubble */
@@ -850,7 +872,7 @@
       display:flex; align-items:center; gap:4px;
       margin-top:4px; font-size:10px; color:#bbb;
     }
-    .msg-row.outgoing .msg-footer { justify-content:flex-end; color:rgba(184,134,11,0.5); }
+    .msg-row.outgoing .msg-footer { justify-content:flex-end; color:rgba(110,80,0,.75); }
     .msg-row .msg-check { font-size:12px; }
     .msg-row .msg-check.read { color:#52C41A; }
     .msg-row .msg-check.delivered { color:#bbb; }
@@ -896,18 +918,27 @@
 
     /* ─── QUICK CHIPS ─── */
     .quick-chips {
-      display:flex; gap:6px; padding:8px 16px;
+      display:flex; gap:8px; padding:14px 16px 12px;
       overflow-x:auto; flex-shrink:0; background:#f5f5f5;
-      border-top:1px solid #f0f0f0;
+      border-top:1px solid #ececec;
+      box-shadow:0 -6px 14px rgba(0,0,0,0.03);
     }
     .quick-chips::-webkit-scrollbar { display:none; }
     .quick-chip {
-      flex-shrink:0; padding:7px 14px; border-radius:16px;
-      border:1.5px solid #e8e8e8; background:#fff;
-      font-size:12px; font-weight:600; cursor:pointer;
-      color:#666; white-space:nowrap; transition:all .2s;
+      flex-shrink:0; padding:9px 16px; border-radius:20px;
+      border:1.5px solid #e0e0e0; background:#fff;
+      font-size:12.5px; font-weight:600; cursor:pointer;
+      color:#555; white-space:nowrap; transition:all .15s;
     }
     .quick-chip:hover { border-color:#1677FF; color:#1677FF; background:#f0f4ff; }
+    .quick-chip:active { transform:scale(.95); background:#e6f0ff; }
+
+    /* Indication discrète au-dessus des suggestions (espace vide) */
+    .msg-soft-hint {
+      display:flex; align-items:center; justify-content:center; gap:6px;
+      flex-shrink:0; padding:10px 16px 2px; text-align:center;
+      font-size:11.5px; line-height:1.45; color:#98a0a8; background:#f5f5f5;
+    }
 
     /* ─── RICH MESSAGE CARDS ─── */
     .rich-msg-card {
@@ -1068,9 +1099,27 @@
     .msg-empty-state p { font-size:15px; color:#999; }
 
     /* ═══ RESPONSIVE ═══ */
+    /* La conversation utilise position:fixed : le transform d'entree (fadeUp)
+       de la section en ferait le reperage -> chat decale de 10px et coupe
+       hors ecran. On l'annule pour la messagerie uniquement. */
+    #sectionMessages.section { animation:none; transform:none; }
+    /* Desktop : la messagerie a besoin de toute la largeur (dans la colonne
+       de 480px de #app, la barre laterale de 320px ne laisse que ~110px a
+       la zone de chat : entete et suggestions sont ecrasees). */
+    @media (min-width:768px) {
+      #app.app-wide { max-width:1440px; }
+    }
     @media (max-width:767px) {
-      #sectionMessages.section { height:auto; min-height:calc(100vh - 60px); padding-bottom:0; }
-      #sectionMessages .msg-layout { height:calc(100vh - 60px); border-radius:0; border:none; box-shadow:none; }
+      /* Section Messages = exactement l'ecran sous le header sticky :
+         pas de debordement (sinon les suggestions passent SOUS la
+         barre de saisie, qui elle est fixee au viewport). */
+      #sectionMessages.section {
+        height: calc(100vh - var(--aisy-msg-top, var(--aisy-header-h, 180px)));
+        min-height: 0; padding-bottom: 0;
+      }
+      #sectionMessages .msg-layout { height:100%; border-radius:0; border:none; box-shadow:none; }
+      /* Conversation ouverte : la page ne defile pas derriere le chat */
+      body.msg-show-chat { overflow:hidden; }
       .msg-layout { flex-direction:column; }
       .msg-sidebar { width:100%; border-right:none; border-radius:0; }
       .msg-sidebar-header { padding:14px 16px 10px; }
@@ -1105,9 +1154,11 @@
          et collée au bas de l'ecran (la barre de navigation est masquee). */
       #chatInputBar { bottom:0; padding:6px 10px; z-index:130; padding-bottom:calc(6px + env(safe-area-inset-bottom,0px)); }
       #chatInputBar.ios-keyboard { bottom:0; padding-bottom:6px; }
-      /* Hauteur de la barre reservee : les chips rapides restent au-dessus */
-      #msgChatContent { padding-bottom:64px; }
-      .quick-chips { padding:6px 10px; border-top:1px solid #f0f0f0; background:#fff; }
+      /* Hauteur de la barre reservee : les chips rapides et l'indication
+         restent au-dessus de la zone de saisie, avec un vrai espacement */
+      #msgChatContent { padding-bottom:80px; }
+      .quick-chips { padding:12px 12px 10px; gap:8px; border-top:1px solid #ececec; background:#fff; }
+      .msg-soft-hint { padding:8px 12px 2px; font-size:11px; background:#fff; }
       .chat-input-row { gap:6px; }
       .cib-plus-btn { width:38px; height:38px; font-size:18px; }
       .cib-send-btn { width:38px; height:38px; font-size:16px; }
@@ -1615,8 +1666,10 @@
     .section { padding-bottom: 80px; }
     #sectionMessages.section { padding-bottom: 0; }
     @media (min-width: 768px) {
-      /* 130px reserves en bas : composeur (haut a 70px) + barre de nav (69px) */
-      #sectionMessages.section { padding-bottom: 130px; }
+      /* 146px reserves en bas : composeur (haut a 70px, hauteur 60px)
+         + barre de nav (69px) + 16px d'air, pour que les suggestions
+         rapides ne viennent pas toucher la barre de saisie. */
+      #sectionMessages.section { padding-bottom: 146px; }
       /* Le composeur est place JUSTE au-dessus de la barre de navigation
          et au-dessus d'elle en z-index (sinon la nav le recouvrait). */
       #chatInputBar { bottom: 70px; z-index: 120; }
@@ -1811,6 +1864,7 @@
           <div class="chat-header" id="chatHeader"></div>
           <div id="productContextBanner" style="display:none"></div>
           <div class="msg-messages" id="msgMessagesArea"></div>
+          <div class="msg-soft-hint" id="msgSoftHint" style="display:none">🔒 Conversation privée — envoyez un texte, une photo 📷 ou un message vocal 🎤</div>
           <div class="quick-chips" id="quickChips" style="display:none"></div>
         </div>
       </div>
@@ -2634,8 +2688,14 @@ function showSection(name) {
   const el = document.querySelector(`[data-section="${name}"]`);
   if (el) el.classList.add('active');
   document.querySelectorAll('.aisy-nav-item').forEach(b => b.classList.toggle('active', b.dataset.target === name));
-  // Recalcule les variables CSS de hauteur (header + haut de section Messages)
-  if (typeof majHauteurHeader === 'function') requestAnimationFrame(majHauteurHeader);
+  // Desktop : la messagerie s'affiche en pleine largeur (sinon la barre
+  // laterale de 320px n'laisse que ~110px a la zone de chat)
+  var appEl = document.getElementById('app');
+  if (appEl) appEl.classList.toggle('app-wide', name === 'messages');
+  // Recalcule les variables CSS de hauteur (header + haut de section Messages).
+  // Appel SYNCHRONE (requestAnimationFrame ne s'execute pas toujours, p.ex.
+  // onglet en arriere-plan) puis a nouveau au frame suivant.
+  if (typeof majHauteurHeader === 'function') { majHauteurHeader(); requestAnimationFrame(majHauteurHeader); }
   var helpFab = document.querySelector('.help-fab');
   if (helpFab) helpFab.style.display = (name === 'messages' || name === 'ia') ? 'none' : 'flex';
   if (name === 'accueil') {
@@ -2653,6 +2713,7 @@ function showSection(name) {
     document.getElementById('msgLayout')?.classList.remove('msg-show-chat');
     document.body.classList.remove('msg-show-chat');
     var cib=document.getElementById('chatInputBar'); if(cib) cib.style.display='none';
+    var smh=document.getElementById('msgSoftHint'); if(smh) smh.style.display='none';
     var hdr=document.getElementById('msgChatHeader'); if(hdr){hdr.className='msg-chat-header';hdr.innerHTML='';}
     var spc=document.getElementById('sellerProductCard'); if(spc){spc.style.display='none';spc.innerHTML='';}
     var ab=document.getElementById('msgActionBar'); if(ab) ab.innerHTML='';
@@ -4216,7 +4277,28 @@ function closeConv() {
   document.body.classList.remove('msg-show-chat');
   const cib = document.getElementById('chatInputBar');
   if (cib) { cib.style.display = 'none'; cib.style.bottom = ''; cib.style.zIndex = ''; }
+  const hint = document.getElementById('msgSoftHint');
+  if (hint) hint.style.display = 'none';
   msgCurrentId = null;
+}
+
+// ─── BLOC PRODUIT LIÉ (réductible) ───
+function toggleProductBanner(collapse) {
+  const b = document.getElementById('pcbBanner');
+  if (!b) return;
+  if (collapse === true) b.classList.add('pcb-collapsed');
+  else if (collapse === false) b.classList.remove('pcb-collapsed');
+  else b.classList.toggle('pcb-collapsed');
+}
+
+// « Commander » avec retour visuel (état en cours) puis déclenchement
+function commanderProduit(id, nom, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '⏳…'; }
+  try { orderProduct(id, nom); }
+  catch (e) { console.warn('orderProduct error:', e); }
+  setTimeout(function () {
+    if (btn) { btn.disabled = false; btn.textContent = 'Commander'; }
+  }, 1500);
 }
 
 function openConv(id) {
@@ -4241,6 +4323,8 @@ function showChatView(conv) {
   document.getElementById('msgEmptyState').style.display = 'none';
   const content = document.getElementById('msgChatContent');
   content.style.display = 'flex';
+  const softHint = document.getElementById('msgSoftHint');
+  if (softHint) softHint.style.display = 'flex';
 
   var sellerProducts = (allProducts.length ? allProducts : LOCAL).filter(p => p.seller_name === conv.name || p.seller === conv.name).slice(0, 5);
   var orderCount = conv.orderCount || Math.floor(Math.random() * 20) + 1;
@@ -4275,14 +4359,24 @@ function showChatView(conv) {
     const pId = conv.productId || sellerProducts[0]?._id || '';
     bannerArea.style.display = 'block';
     bannerArea.innerHTML = `
-      <div class="product-context-banner" onclick="showDetail('${escJs(pId)}');showSection('catalogue')">
-        ${pImg ? `<img class="pcb-img" src="${escHtml(pImg)}" alt="">` : `<div class="pcb-img">📦</div>`}
-        <div class="pcb-info">
-          <div class="pcb-title">${escHtml(pName)}</div>
-          <div class="pcb-price">${fmtPrice(pPrice)}</div>
-          <div class="pcb-meta">Produit lié à cette conversation</div>
+      <div class="product-context-banner" id="pcbBanner" onclick="showDetail('${escJs(pId)}');showSection('catalogue')">
+        <div class="pcb-full">
+          ${pImg ? `<img class="pcb-img" src="${escHtml(pImg)}" alt="">` : `<div class="pcb-img">📦</div>`}
+          <div class="pcb-info">
+            <div class="pcb-title">${escHtml(pName)}</div>
+            <div class="pcb-line">
+              <span class="pcb-price">${fmtPrice(pPrice)}</span>
+              <span class="pcb-meta">Produit lié à cette conversation</span>
+            </div>
+          </div>
+          <button class="pcb-btn" id="pcbCmdBtn" onclick="event.stopPropagation();commanderProduit('${escJs(pId)}','${escJs(pName)}',this)">Commander</button>
+          <button class="pcb-toggle" title="Réduire" aria-label="Réduire le bloc produit" onclick="event.stopPropagation();toggleProductBanner(true)">▾</button>
         </div>
-        <button class="pcb-btn" onclick="event.stopPropagation();orderProduct('${escJs(pId)}','${escJs(pName)}')">Commander</button>
+        <div class="pcb-mini">
+          <span class="pcb-mini-txt">📦 ${escHtml(pName)}</span>
+          <span class="pcb-mini-price">${fmtPrice(pPrice)}</span>
+          <button class="pcb-toggle" title="Agrandir" aria-label="Agrandir le bloc produit" onclick="event.stopPropagation();toggleProductBanner(false)">▴</button>
+        </div>
       </div>`;
   } else {
     bannerArea.style.display = 'none';
@@ -5717,10 +5811,11 @@ function majHauteurHeader() {
     document.documentElement.style.setProperty('--aisy-header-h', h.offsetHeight + 'px');
   }
   // Haut reel de la section Messages (peut diffuser du header : marge, bandeau...)
+  // offsetTop = position de mise en page, insensible au transform d'entree
+  // des sections (getBoundingClientRect() en tenait compte : +10px).
   var sec = document.getElementById('sectionMessages');
   if (sec && sec.offsetHeight > 0) {
-    var haut = sec.getBoundingClientRect().top + (window.scrollY || window.pageYOffset || 0);
-    document.documentElement.style.setProperty('--aisy-msg-top', Math.round(haut) + 'px');
+    document.documentElement.style.setProperty('--aisy-msg-top', Math.round(sec.offsetTop) + 'px');
   }
 }
 majHauteurHeader();
@@ -5730,6 +5825,10 @@ window.addEventListener('orientationchange', majHauteurHeader);
 if (window.ResizeObserver) {
   document.addEventListener('DOMContentLoaded', function () {
     try { new ResizeObserver(majHauteurHeader).observe(document.body); } catch (e) {}
+    // Le header peut grandir apres le chargement (bandeau, recherche,
+    // categories) : on le surveille aussi pour garder --aisy-header-h juste.
+    var hd = document.querySelector('.aisy-header');
+    if (hd) { try { new ResizeObserver(majHauteurHeader).observe(hd); } catch (e) {} }
   });
 }
 
