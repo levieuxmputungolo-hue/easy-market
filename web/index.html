@@ -3464,7 +3464,7 @@ function matchTokens(tokens, mots) {
   });
 }
 var MOTS_VEHICULE = ['vehicule', 'auto', 'automobile', 'voiture', 'moto', 'camion', 'berline', 'suv', 'carrosserie'];
-var MOTS_ANIMAL   = ['animal', 'chiot', 'chien', 'chat', 'chatte', 'oiseau', 'poisson', 'rongeur', 'furet', 'lapin', 'volaille', 'kitten', 'puppy', 'dog', 'cat'];
+var MOTS_ANIMAL   = ['animal', 'animaux', 'chiot', 'chien', 'chat', 'chatte', 'oiseau', 'poisson', 'rongeur', 'furet', 'lapin', 'volaille', 'kitten', 'puppy', 'dog', 'cat'];
 var MOTS_TECH     = ['smartphone', 'telephone', 'ordinateur', 'audio', 'accessoire', 'electronique', 'informatique', 'casque', 'montre', 'tablette'];
 
 function typeProduit(p) {
@@ -3532,6 +3532,13 @@ function specsHTML(p) {
       + '<span class="detail-spec-label">' + escHtml(r.label) + '</span>'
       + '<span class="detail-spec-val">' + val + '</span></div>';
   }).join('');
+}
+
+// Section complète, masquée si aucune caractéristique à afficher
+function sectionSpecsHTML(p) {
+  var corps = specsHTML(p);
+  if (!corps) return '';
+  return '<div class="detail-section"><h3>Spécifications</h3>' + corps + '</div>';
 }
 
 // ─── DETAIL ───
@@ -3649,10 +3656,7 @@ function showDetail(p) {
     </div>
 
     <!-- 3. INFORMATIONS RAPIDES (adaptées à la catégorie du produit) -->
-    <div class="detail-section">
-      <h3>Spécifications</h3>
-      ${specsHTML(p)}
-    </div>
+    ${sectionSpecsHTML(p)}
 
     <!-- 4. BLOC VENDEUR PREMIUM -->
     <div class="detail-section">
@@ -3694,7 +3698,7 @@ function showDetail(p) {
       <div id="detailTabContent" style="padding:16px">
         <div id="detailTab0" style="font-size:14px;color:#555;line-height:1.7">${escHtml(desc || 'Description non disponible')}</div>
         <div id="detailTab1" style="display:none">
-          ${specsHTML(p)}
+          ${specsHTML(p) || '<div style="color:#999;font-size:13px;line-height:1.5">Aucune caractéristique renseignée pour ce produit.</div>'}
         </div>
         <div id="detailTab2" style="display:none">
           <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">
