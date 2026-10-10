@@ -2677,6 +2677,8 @@ function toast(msg, type, ms) {
   clearTimeout(el._t);
   el._t = setTimeout(() => el.classList.remove('show'), ms || 2400);
 }
+// Alias utilise par le script hors-ligne / installation (sinon ReferenceError)
+function showToast(msg, type, ms) { toast(msg, type, ms); }
 
 // ─── SECTIONS ───
 // Produit en attente de connexion (repris automatiquement après login)
@@ -3883,13 +3885,25 @@ function isPubAdmin() {
   return email && (PUB_ADMIN_EMAILS.includes(email.toLowerCase()) || role === 'vendeur');
 }
 
+// Timestamp Firestore / Date → millisecondes (tri des publicités côté client)
+function msDe(v) {
+  if (!v) return 0;
+  if (typeof v.toMillis === 'function') return v.toMillis();
+  if (typeof v.seconds === 'number') return v.seconds * 1000;
+  if (v instanceof Date) return v.getTime();
+  return 0;
+}
+
 async function loadPublicites() {
   const loading = document.getElementById('pubBannerLoading');
   const content = document.getElementById('pubBannerContent');
   const dotsEl = document.getElementById('pubDots');
   try {
-    const snap = await fbDb.collection('publicites').where('active', '==', true).orderBy('createdAt', 'desc').get();
-    pubSlides = snap.docs.map(d => ({ _id: d.id, ...d.data() }));
+    // where + orderBy combinés imposeraient un index composite Firestore :
+    // le tri se fait ici (quelques publicités, aucun coût).
+    const snap = await fbDb.collection('publicites').where('active', '==', true).get();
+    pubSlides = snap.docs.map(d => ({ _id: d.id, ...d.data() }))
+      .sort((a, b) => msDe(b.createdAt) - msDe(a.createdAt));
   } catch(e) {
     console.warn('pub load error:', e);
     pubSlides = [];
@@ -6031,6 +6045,7 @@ function renderAuth(forceLogin) {
         <div style="margin-bottom:16px;text-align:center">
           <button class="aisy-btn aisy-btn-sm aisy-btn-outline" onclick="openAbout()" style="width:auto;font-size:12px">ℹ️ À propos</button>
           <button class="aisy-btn aisy-btn-sm aisy-btn-outline" onclick="toggleHelp()" style="width:auto;font-size:12px;margin-left:6px">📖 Guide</button>
+          <button class="aisy-btn aisy-btn-sm aisy-btn-outline" onclick="installApp()" style="width:auto;font-size:12px;margin-left:6px">📥 Installer l'app</button>
         </div>
         <button class="aisy-btn" onclick="logout()" style="max-width:200px;margin:0 auto;background:#ff3b30;box-shadow:none">Déconnexion</button>
         <div id="mfaSetupArea" style="margin-top:16px"></div>
@@ -9409,8 +9424,14 @@ if('serviceWorker' in navigator){
 }
 var deferredPrompt=null;
 window.addEventListener('beforeinstallprompt',function(e){
-  e.preventDefault();deferredPrompt=e;
-  if(!localStorage.getItem('eazy_install_dismissed')){
+  deferredPrompt=e;
+  var dejaFerme=!!localStorage.getItem('eazy_install_dismissed');
+  var banniereVisible=!!document.getElementById('installBanner');
+  // On n'interdit la banniere du navigateur QUE si la notre s'affiche vraiment.
+  // Sinon Chrome affiche « Banner not shown » et l'utilisateur n'a plus aucun
+  // moyen d'installer l'application.
+  if(!dejaFerme && !banniereVisible){
+    e.preventDefault();
     showInstallBanner();
   }
 });
@@ -9423,7 +9444,12 @@ function showInstallBanner(){
   document.body.appendChild(b);
 }
 function installApp(){
-  if(!deferredPrompt)return;
+  if(!deferredPrompt){
+    // Pas d'evenement d'installation : deja installe, ou navigateur sans support
+    var ios=/iPad|iPhone|iPod/.test(navigator.userAgent);
+    showToast(ios?"iOS : bouton Partager → « Sur l'écran d'accueil »":"Menu du navigateur → « Installer Easy Market » ou « Ajouter à l'écran d'accueil »",null,6000);
+    return;
+  }
   deferredPrompt.prompt();
   deferredPrompt.userChoice.then(function(r){if(r.outcome==='accepted'){showToast('Easy Market installe !')}deferredPrompt=null;var b=document.getElementById('installBanner');if(b)b.remove()});
 }

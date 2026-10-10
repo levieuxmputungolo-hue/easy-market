@@ -1,4 +1,4 @@
-const CACHE_NAME = 'easymarket-v12';
+const CACHE_NAME = 'easymarket-v13';
 const STATIC_ASSETS = [
   '/manifest.json',
   '/assets/logo.svg',
@@ -49,17 +49,11 @@ self.addEventListener('fetch', function(e) {
     return;
   }
 
-  // Firestore — network first, cache fallback
-  if (url.includes('firestore.googleapis.com') || url.includes('firebaseio.com')) {
-    e.respondWith(
-      fetch(e.request).then(function(response) {
-        var clone = response.clone();
-        caches.open(CACHE_NAME).then(function(cache) { cache.put(e.request, clone); });
-        return response;
-      }).catch(function() {
-        return caches.match(e.request);
-      })
-    );
+  // Firestore / WebChannel — ON N'INTERCEPTE PAS.
+  // Les requetes du SDK (Listen/channel, GET long-poll) sont en streaming :
+  // les passer par le cache rejoue d'anciens snapshots et fait echouer le canal
+  // (« Récupérer chargement défaillant » dans la console).
+  if (url.includes('firestore.googleapis.com') || url.includes('firebaseio.com') || url.includes('firebaseapp.com')) {
     return;
   }
 
