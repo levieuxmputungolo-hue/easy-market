@@ -1783,7 +1783,7 @@
         <div style="padding:14px 16px 16px;display:flex;flex-direction:column">
           <div id="featuredName" style="font-size:18px;font-weight:700;margin-bottom:4px;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden">Chargement...</div>
           <div style="display:flex;align-items:center;gap:12px">
-            <div id="featuredPrice" style="font-size:26px;font-weight:800;color:#ff3b30">$0</div>
+            <div id="featuredPrice" style="font-size:26px;font-weight:800;color:#ff3b30">0 $</div>
             <span style="font-size:13px;color:#888">⭐ <span id="featuredRating">—</span></span>
             <span style="font-size:13px;color:#888">•</span>
             <span style="font-size:13px;color:#888"><span id="featuredSales">0</span> vendus</span>
@@ -1878,7 +1878,7 @@
     <div class="aisy-cart-footer" id="cartFooter">
       <div style="display:flex;align-items:center;gap:12px;padding:0 12px">
         <div><div class="label">Total</div></div>
-        <span class="price" id="cartTotalPrice">$0.00</span>
+        <span class="price" id="cartTotalPrice">0 $</span>
         <button class="aisy-btn" id="checkoutBtn" style="width:auto;padding:10px 24px;font-size:14px">Commander</button>
       </div>
     </div>
@@ -2658,10 +2658,11 @@ let cart; try { cart = JSON.parse(localStorage.getItem('aisy_cart') || '[]'); } 
 let currentProduct = null;
 let allProducts = [];
 
-// ─── FORMAT PRICE ───
+// ─── FORMAT PRICE (unique format pour toute l'application : "600 $" / "17,50 $") ───
 function fmtPrice(v) {
-  if (v == null || isNaN(v)) return '0,00 $';
-  const s = v.toFixed(2).replace('.', ',');
+  if (v == null || isNaN(v)) return '0 $';
+  const n = Number(v);
+  let s = Number.isInteger(n) ? String(n) : n.toFixed(2).replace('.', ',');
   const parts = s.split(',');
   parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
   return parts.join(',') + ' $';
@@ -3005,7 +3006,7 @@ function createCard(p) {
   const titre = p.titre || p.name || 'Produit';
   const imgHtml = img && (img.startsWith('http') || img.startsWith('data:'))
     ? `<img src="${img}" alt="${escHtml(titre)}">`
-    : `<div class="prod-img-wrap">${img || '📦'}</div>`;
+    : `<div class="prod-img-wrap">${ICO_DEFAUT}</div>`;
   const disc = p.comparePrice && p.comparePrice > p.price
     ? Math.round((1 - p.price / p.comparePrice) * 100)
     : 0;
@@ -3102,7 +3103,7 @@ function runVisSearch() {
             <span class="hcard-badge" style="background:${colors[0] || '#2a7de1'}">📷 Match</span>
             ${p.image && (p.image.startsWith('http') || p.image.startsWith('data:'))
               ? `<img src="${p.image}" alt="${p.name}" loading="lazy">`
-              : `<span>${p.image || '📦'}</span>`}
+              : `<span>${ICO_DEFAUT}</span>`}
           </div>
           <div class="hcard-body">
             <div class="hcard-name">${p.name}</div>
@@ -3339,7 +3340,7 @@ function renderPopularRow(prods) {
         ${p.rating >= 4.7 ? '<span class="hcard-badge">⭐ Top</span>' : ''}
         ${hasImg
           ? `<img src="${pImg}" alt="${escHtml(p.name)}" loading="lazy">`
-          : `<span>${pImg || '📦'}</span>`}
+          : `<span>${ICO_DEFAUT}</span>`}
       </div>
       <div class="hcard-body">
         <div class="hcard-name">${escHtml(p.name)}</div>
@@ -3367,7 +3368,7 @@ function renderBestsellerRow(prods) {
         ${p.salesCount >= 2000 ? '<span class="hcard-badge sales">🔥 Meilleure vente</span>' : ''}
         ${hasImg
           ? `<img src="${pImg}" alt="${escHtml(p.name)}" loading="lazy">`
-          : `<span>${pImg || '📦'}</span>`}
+          : `<span>${ICO_DEFAUT}</span>`}
       </div>
       <div class="hcard-body">
         <div class="hcard-name">${escHtml(p.name)}</div>
@@ -3420,7 +3421,7 @@ function renderMiniGrid(prods) {
       <div style="aspect-ratio:1;background:#f8f8fa;display:flex;align-items:center;justify-content:center;font-size:40px;flex-shrink:0">
         ${hasImg
           ? `<img src="${pImg}" alt="${escHtml(p.name)}" style="width:100%;height:100%;object-fit:cover">`
-          : (pImg || '📦')}
+          : ICO_DEFAUT}
       </div>
       <div style="padding:8px 10px 10px;display:flex;flex-direction:column;flex:1">
         <div style="font-size:12px;font-weight:600;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:2px">${escHtml(p.name)}</div>
@@ -3431,6 +3432,105 @@ function renderMiniGrid(prods) {
         </div>
       </div>
     </div>`;
+  }).join('');
+}
+
+// ─── ICÔNE DE SECOURS (pas d'emoji système : jeu d'icônes Font Awesome) ───
+var ICO_DEFAUT = '<i class="fas fa-box-open" style="font-size:34px;color:#c4c9d0"></i>';
+
+// Appelé par onerror : remplace l'image cassée par une icône homogène
+function imgAbsente(el) {
+  var d = document.createElement('div');
+  d.style.cssText = 'width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#f5f5f5';
+  var i = document.createElement('i');
+  i.className = 'fas fa-box-open';
+  i.style.cssText = 'font-size:32px;color:#c4c9d0';
+  d.appendChild(i);
+  if (el && el.parentElement) el.parentElement.replaceChild(d, el);
+}
+
+// ─── SPÉCIFICATIONS ADAPTÉES À LA CATÉGORIE ───
+// (avant : transmission/carburant/plaque affichés même sur un chiot)
+function normMot(s) {
+  return String(s == null ? '' : s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+function tokensTexte(s) { return normMot(s).split(/[^a-z0-9]+/).filter(Boolean); }
+function matchTokens(tokens, mots) {
+  return tokens.some(function (mot) {
+    return mots.some(function (m) {
+      // égal ou pluriel (chiots/chats/animaux...) mais pas "chateau" pour "chat"
+      return mot === m || (mot.indexOf(m) === 0 && (mot.length - m.length) <= 2);
+    });
+  });
+}
+var MOTS_VEHICULE = ['vehicule', 'auto', 'automobile', 'voiture', 'moto', 'camion', 'berline', 'suv', 'carrosserie'];
+var MOTS_ANIMAL   = ['animal', 'chiot', 'chien', 'chat', 'chatte', 'oiseau', 'poisson', 'rongeur', 'furet', 'lapin', 'volaille', 'kitten', 'puppy', 'dog', 'cat'];
+var MOTS_TECH     = ['smartphone', 'telephone', 'ordinateur', 'audio', 'accessoire', 'electronique', 'informatique', 'casque', 'montre', 'tablette'];
+
+function typeProduit(p) {
+  var ct = tokensTexte((p && (p.category || p.categorie)) || '');
+  var tt = tokensTexte((p && (p.titre || p.name)) || '');
+  if (matchTokens(ct, MOTS_VEHICULE)) return 'vehicule';
+  if (matchTokens(ct, MOTS_ANIMAL)) return 'animal';
+  if (!ct.length && matchTokens(tt, MOTS_ANIMAL)) return 'animal'; // titre "Chiots berger allemand"
+  if (matchTokens(ct, MOTS_TECH)) return 'tech';
+  return 'autre';
+}
+
+function specsProduit(p) {
+  var type = typeProduit(p);
+  var v = function (x) { return (x == null ? '' : String(x).trim()); };
+  var rows = [];
+  var add = function (icone, label, val) { rows.push({ icone: icone, label: label, val: v(val) }); };
+  if (type === 'vehicule') {
+    add('fa-car', 'Marque', p.marque);
+    add('fa-calendar-days', 'Année', p.annee);
+    add('fa-gears', 'Transmission', p.transmission);
+    add('fa-gas-pump', 'Carburant', p.carburant);
+    add('fa-palette', 'Couleur', p.couleur);
+    add('fa-file-lines', 'Documents', p.documents);
+  } else if (type === 'animal') {
+    add('fa-dog', 'Race', p.race);
+    add('fa-clock', 'Âge', p.age_animal);
+    add('fa-venus-mars', 'Sexe', p.sexe);
+    add('fa-syringe', 'Vaccination', p.vaccination);
+    add('fa-heart-pulse', 'Carnet de santé', p.carnet_sante);
+    add('fa-palette', 'Couleur', p.couleur);
+  } else if (type === 'tech') {
+    add('fa-tag', 'Marque', p.marque);
+    add('fa-box', 'État', p.etat);
+    add('fa-palette', 'Couleur', p.couleur);
+  } else {
+    add('fa-layer-group', 'Catégorie', p.category || p.categorie);
+    add('fa-box', 'État', p.etat);
+    add('fa-palette', 'Couleur', p.couleur);
+  }
+  add('fa-location-dot', 'Localisation', p.localisation);
+  // Véhicule / animal : les champs attendus restent visibles (« Non renseigné »).
+  // Autres catégories : on n'affiche que ce qui a été saisi (plus la catégorie).
+  if (type !== 'vehicule' && type !== 'animal') {
+    rows = rows.filter(function (r) { return r.val || r.label === 'Catégorie'; });
+  }
+  return { type: type, rows: rows };
+}
+
+// Affiche/masque les champs du formulaire selon la catégorie saisie
+function gestionChampsCategorie() {
+  var cat = (document.getElementById('categorie') || {}).value || '';
+  var type = typeProduit({ category: cat });
+  var ev = document.getElementById('champVehicule');
+  var ea = document.getElementById('champAnimaux');
+  if (ea) ea.style.display = (type === 'animal') ? 'block' : 'none';
+  if (ev) ev.style.display = (type === 'animal') ? 'none' : 'block';
+}
+
+function specsHTML(p) {
+  return specsProduit(p).rows.map(function (r) {
+    var val = r.val ? escHtml(r.val)
+      : '<span style="color:#b9bec6;font-weight:500">Non renseigné</span>';
+    return '<div class="detail-spec-row"><i class="detail-spec-ico fas ' + r.icone + '"></i>'
+      + '<span class="detail-spec-label">' + escHtml(r.label) + '</span>'
+      + '<span class="detail-spec-val">' + val + '</span></div>';
   }).join('');
 }
 
@@ -3452,20 +3552,22 @@ function showDetail(p) {
   const stock = p.stock;
   const desc = p.description || '';
   const seller = p.seller_name || 'Vendeur';
-  const marque = p.marque || 'Toyota';
-  const annee = p.annee || '2024';
-  const transmission = p.transmission || 'Automatique';
-  const carburant = p.carburant || 'Essence';
-  const localisation = p.localisation || 'Kinshasa';
-  const couleur = p.couleur || 'Noir';
-  const documents = p.documents || 'Plaque';
   const totalSlides = imgs.length;
-  const similarProducts = [
-    { name: 'Toyota Prado', price: 6800, stars: 5 },
-    { name: 'Toyota RAV4', price: 7300, stars: 4 },
-    { name: 'Toyota Corolla', price: 4500, stars: 4 },
-    { name: 'Toyota Yaris', price: 3200, stars: 5 }
-  ];
+  // Produits similaires RÉELS (même catégorie d'abord), plus jamais une
+  // liste figée de Toyota avec une icône 🚗
+  const catalogue = (allProducts && allProducts.length) ? allProducts : (typeof LOCAL !== 'undefined' ? LOCAL : []);
+  const memeCat = catalogue.filter(x => x._id !== p._id && x.category && p.category && x.category === p.category);
+  const reste = catalogue.filter(x => x._id !== p._id && memeCat.indexOf(x) === -1);
+  const similarProducts = memeCat.concat(reste).slice(0, 6).map(x => {
+    const im = (x.images && x.images[0]) || x.image || '';
+    return {
+      id: x._id,
+      name: x.titre || x.name || 'Produit',
+      price: x.price || 0,
+      img: (typeof im === 'string' && (im.startsWith('http') || im.startsWith('data:'))) ? im : '',
+      stars: Math.max(3, Math.min(5, Math.round(x.rating || 4)))
+    };
+  });
 
   sheet.innerHTML = `
     <style>
@@ -3473,7 +3575,7 @@ function showDetail(p) {
       .detail-section h3 { font-size:16px; font-weight:700; margin:0 0 12px; color:#1a1a1a; }
       .detail-spec-row { display:flex; align-items:center; padding:8px 0; border-bottom:1px solid #f5f5f5; }
       .detail-spec-row:last-child { border-bottom:none; }
-      .detail-spec-emoji { font-size:18px; width:30px; flex-shrink:0; }
+      .detail-spec-ico { width:30px; flex-shrink:0; text-align:center; font-size:15px; color:#FF6F00; }
       .detail-spec-label { font-size:13px; color:#888; width:110px; flex-shrink:0; }
       .detail-spec-val { font-size:13px; font-weight:600; color:#1a1a1a; }
       .detail-badge { display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:500; padding:4px 0; }
@@ -3485,8 +3587,9 @@ function showDetail(p) {
       .detail-tab.active { color:#FF6F00; font-weight:700; border-bottom-color:#FF6F00; }
       .detail-similar-card { width:140px; flex-shrink:0; border-radius:12px; border:1px solid #eee; overflow:hidden; cursor:pointer; }
       .detail-similar-card:hover { box-shadow:0 4px 12px rgba(0,0,0,.08); }
-      .detail-similar-img { height:90px; background:#f5f5f5; display:flex; align-items:center; justify-content:center; font-size:36px; }
-      .detail-similar-info { padding:8px; }
+      .detail-similar-img { height:90px; background:#f5f5f5; display:flex; align-items:center; justify-content:center; font-size:36px; overflow:hidden; }
+      .detail-similar-img img { width:100%; height:100%; object-fit:cover; }
+      .detail-similar-info { padding:10px; }
       .detail-similar-name { font-size:12px; font-weight:600; color:#1a1a1a; margin-bottom:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
       .detail-similar-price { font-size:14px; font-weight:800; color:#FF6F00; }
       .detail-floating-bar { position:fixed; bottom:0; left:50%; transform:translateX(-50%); width:100%; max-width:640px; background:#fff; padding:8px 16px; box-shadow:0 -4px 18px rgba(0,0,0,.06); display:flex; align-items:center; gap:10px; z-index:10001; border-radius:16px 16px 0 0; }
@@ -3501,7 +3604,7 @@ function showDetail(p) {
     <div style="position:relative;overflow:hidden;background:#000">
       <div style="position:relative;height:420px;overflow:hidden">
         <div id="detailGallery" style="display:flex;transition:transform 0.4s ease;height:100%;width:${totalSlides * 100}%">
-          ${imgs.map((img, i) => `<div style="min-width:${totalSlides > 0 ? 100/totalSlides : 100}%;height:100%;position:relative;cursor:pointer" onclick="openZoomGallery(${i})"><img src="${img}" alt="${escHtml(titre)} ${i+1}" style="width:100%;height:100%;object-fit:cover" onerror="this.outerHTML='<div style=\\'width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#f5f5f5\\'>📦</div>'"></div>`).join('')}
+          ${imgs.map((img, i) => `<div style="min-width:${totalSlides > 0 ? 100/totalSlides : 100}%;height:100%;position:relative;cursor:pointer" onclick="openZoomGallery(${i})"><img src="${img}" alt="${escHtml(titre)} ${i+1}" style="width:100%;height:100%;object-fit:cover" onerror="imgAbsente(this)"></div>`).join('')}
         </div>
         ${totalSlides > 1 ? `
           <button onclick="event.stopPropagation();detailImgNav(-1)" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.3);color:#fff;border:none;border-radius:50%;width:36px;height:36px;font-size:18px;cursor:pointer;z-index:2;backdrop-filter:blur(4px)">◀</button>
@@ -3521,7 +3624,7 @@ function showDetail(p) {
           ${Array(totalSlides).fill(0).map((_, i) => `<div style="flex:1;height:3px;border-radius:2px;background:${i===_detailImgIdx?'#FF6F00':'#f0f0f0'};transition:background .3s" id="progDot${i}"></div>`).join('')}
         </div>
         <div style="display:flex;gap:8px;padding:4px 12px 8px;overflow-x:auto;background:#fff">
-          ${imgs.map((img, i) => `<div onclick="detailImgGoTo(${i})" style="width:56px;height:56px;border-radius:8px;border:2px solid ${i===_detailImgIdx?'#FF6F00':'#e0e0e0'};overflow:hidden;flex-shrink:0;cursor:pointer;transition:border-color .2s" id="thumb${i}"><img src="${img}" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.innerHTML='📦'"></div>`).join('')}
+          ${imgs.map((img, i) => `<div onclick="detailImgGoTo(${i})" style="width:56px;height:56px;border-radius:8px;border:2px solid ${i===_detailImgIdx?'#FF6F00':'#e0e0e0'};overflow:hidden;flex-shrink:0;cursor:pointer;transition:border-color .2s" id="thumb${i}"><img src="${img}" style="width:100%;height:100%;object-fit:cover" onerror="imgAbsente(this)"></div>`).join('')}
         </div>
       ` : ''}
     </div>
@@ -3534,28 +3637,21 @@ function showDetail(p) {
         <span style="font-size:13px;font-weight:600">${rating}</span>
         <span style="font-size:12px;color:#888">(${reviews} avis)</span>
       </div>
-      <div style="display:flex;align-items:baseline;gap:4px;margin-bottom:6px">
-        <span style="font-size:14px;color:#888;font-weight:500">US</span>
-        <span style="font-size:32px;font-weight:800;color:#FF6F00">$${price.toLocaleString('en-US')}</span>
+      <div style="margin-bottom:6px">
+        <span style="font-size:32px;font-weight:800;color:#FF6F00">${fmtPrice(price)}</span>
       </div>
-      <div style="display:inline-block;background:rgba(255,111,0,0.1);color:#FF6F00;padding:4px 10px;border-radius:6px;font-size:12px;font-weight:600;margin-bottom:12px">Prix négociable</div>
+      ${p.prix_negociable ? `<div style="display:inline-block;background:rgba(255,111,0,0.1);color:#FF6F00;padding:4px 10px;border-radius:6px;font-size:12px;font-weight:600;margin-bottom:12px">Prix négociable</div>` : ''}
       <div style="display:flex;gap:16px;flex-wrap:wrap">
         <span style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:600;color:${stock > 0 ? '#00c853' : '#ff3b30'}">✓ ${stock != null ? 'En stock : '+stock : 'Disponible'}</span>
-        <span style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:600;color:#2196f3">🚚 Livraison</span>
-        <span style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:600;color:#9c27b0">🛡 Garantie</span>
+        ${p.livraison ? `<span style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:600;color:#2196f3">🚚 Livraison</span>` : ''}
+        ${p.garantie ? `<span style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:600;color:#9c27b0">🛡 Garantie</span>` : ''}
       </div>
     </div>
 
-    <!-- 3. INFORMATIONS RAPIDES -->
+    <!-- 3. INFORMATIONS RAPIDES (adaptées à la catégorie du produit) -->
     <div class="detail-section">
       <h3>Spécifications</h3>
-      <div class="detail-spec-row"><span class="detail-spec-emoji">🚗</span><span class="detail-spec-label">Marque</span><span class="detail-spec-val">${escHtml(marque)}</span></div>
-      <div class="detail-spec-row"><span class="detail-spec-emoji">📅</span><span class="detail-spec-label">Année</span><span class="detail-spec-val">${escHtml(annee)}</span></div>
-      <div class="detail-spec-row"><span class="detail-spec-emoji">⚙️</span><span class="detail-spec-label">Transmission</span><span class="detail-spec-val">${escHtml(transmission)}</span></div>
-      <div class="detail-spec-row"><span class="detail-spec-emoji">⛽</span><span class="detail-spec-label">Carburant</span><span class="detail-spec-val">${escHtml(carburant)}</span></div>
-      <div class="detail-spec-row"><span class="detail-spec-emoji">📍</span><span class="detail-spec-label">Localisation</span><span class="detail-spec-val">${escHtml(localisation)}</span></div>
-      <div class="detail-spec-row"><span class="detail-spec-emoji">🎨</span><span class="detail-spec-label">Couleur</span><span class="detail-spec-val">${escHtml(couleur)}</span></div>
-      <div class="detail-spec-row"><span class="detail-spec-emoji">📄</span><span class="detail-spec-label">Documents</span><span class="detail-spec-val">${escHtml(documents)}</span></div>
+      ${specsHTML(p)}
     </div>
 
     <!-- 4. BLOC VENDEUR PREMIUM -->
@@ -3570,7 +3666,7 @@ function showDetail(p) {
           </div>
         </div>
       </div>
-      <div style="margin-bottom:16px">
+      <div style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-bottom:16px">
         <div class="detail-badge" style="color:#00c853"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg> Verified Supplier</div>
         <div class="detail-badge" style="color:#2196f3"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg> Répond en moins de 5 min</div>
         <div class="detail-badge" style="color:#FF6F00"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z"/></svg> 3 ans sur EasyMarket</div>
@@ -3598,12 +3694,7 @@ function showDetail(p) {
       <div id="detailTabContent" style="padding:16px">
         <div id="detailTab0" style="font-size:14px;color:#555;line-height:1.7">${escHtml(desc || 'Description non disponible')}</div>
         <div id="detailTab1" style="display:none">
-          <div class="detail-spec-row"><span class="detail-spec-emoji">🚗</span><span class="detail-spec-label">Marque</span><span class="detail-spec-val">${escHtml(marque)}</span></div>
-          <div class="detail-spec-row"><span class="detail-spec-emoji">📅</span><span class="detail-spec-label">Année</span><span class="detail-spec-val">${escHtml(annee)}</span></div>
-          <div class="detail-spec-row"><span class="detail-spec-emoji">⚙️</span><span class="detail-spec-label">Transmission</span><span class="detail-spec-val">${escHtml(transmission)}</span></div>
-          <div class="detail-spec-row"><span class="detail-spec-emoji">⛽</span><span class="detail-spec-label">Carburant</span><span class="detail-spec-val">${escHtml(carburant)}</span></div>
-          <div class="detail-spec-row"><span class="detail-spec-emoji">📍</span><span class="detail-spec-label">Localisation</span><span class="detail-spec-val">${escHtml(localisation)}</span></div>
-          <div class="detail-spec-row"><span class="detail-spec-emoji">🎨</span><span class="detail-spec-label">Couleur</span><span class="detail-spec-val">${escHtml(couleur)}</span></div>
+          ${specsHTML(p)}
         </div>
         <div id="detailTab2" style="display:none">
           <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">
@@ -3622,11 +3713,11 @@ function showDetail(p) {
       <h3>Produits similaires</h3>
       <div style="display:flex;gap:12px;overflow-x:auto;padding-bottom:4px">
         ${similarProducts.map(sp => `
-          <div class="detail-similar-card">
-            <div class="detail-similar-img">🚗</div>
+          <div class="detail-similar-card" onclick="showDetail((allProducts.concat(typeof LOCAL!=='undefined'?LOCAL:[]).find(x=>x._id==='${escJs(sp.id)}'))||currentProduct)">
+            <div class="detail-similar-img">${sp.img ? `<img src="${escHtml(sp.img)}" alt="${escHtml(sp.name)}" style="width:100%;height:100%;object-fit:cover" onerror="imgAbsente(this)">` : ICO_DEFAUT}</div>
             <div class="detail-similar-info">
-              <div class="detail-similar-name">${sp.name}</div>
-              <div class="detail-similar-price">$${sp.price.toLocaleString()}</div>
+              <div class="detail-similar-name">${escHtml(sp.name)}</div>
+              <div class="detail-similar-price">${fmtPrice(sp.price)}</div>
               <div style="color:#fbbf24;font-size:11px">${'★'.repeat(sp.stars)}${'☆'.repeat(5-sp.stars)}</div>
             </div>
           </div>
@@ -3817,7 +3908,7 @@ function renderPubSlides() {
     <div class="pub-slide ${i === 0 ? 'active' : ''}" id="pubSlide${i}">
       ${p.type === 'video'
         ? `<video src="${escHtml(p.mediaUrl)}" muted loop playsinline autoplay style="width:100%;height:180px;object-fit:cover" onerror="this.outerHTML='<div style=\\'width:100%;height:180px;background:#333;display:flex;align-items:center;justify-content:center;color:#666;font-size:48px\\'>🎬</div>'"></video>`
-        : `<img src="${escHtml(p.mediaUrl)}" alt="${escHtml(p.titre || '')}" style="width:100%;height:180px;object-fit:cover" onerror="this.outerHTML='<div style=\\'width:100%;height:180px;background:#333;display:flex;align-items:center;justify-content:center;color:#666;font-size:48px\\'>📦</div>'">`}
+        : `<img src="${escHtml(p.mediaUrl)}" alt="${escHtml(p.titre || '')}" style="width:100%;height:180px;object-fit:cover" onerror="imgAbsente(this)">`}
       <div class="pub-badge">📢 Promotion</div>
       <div class="pub-overlay">
         <h3>${escHtml(p.titre || 'Promotion')}</h3>
@@ -4006,7 +4097,7 @@ function renderCart() {
   const totalEl = document.getElementById('cartTotalPrice');
   if (!cart.length) {
     wrap.innerHTML = '<div class="aisy-empty"><div class="big-icon">🛒</div>Votre panier est vide</div>';
-    totalEl.textContent = '$0.00';
+    totalEl.textContent = fmtPrice(0);
     return;
   }
   wrap.innerHTML = '';
@@ -4021,7 +4112,7 @@ function renderCart() {
       <div class="aisy-cart-img">
         ${hasCImg
           ? `<img src="${cImg}" alt="${c.name}" style="width:100%;height:100%;object-fit:cover;border-radius:12px">`
-          : `<span>${cImg || '📦'}</span>`}
+          : `<span>${ICO_DEFAUT}</span>`}
       </div>
       <div class="aisy-cart-info">
         <div class="aisy-cart-name">${c.name}</div>
@@ -4535,7 +4626,7 @@ function shareProductInChat() {
         ${products.map(p => `
           <div style="background:#f8f9fa;border-radius:10px;overflow:hidden;cursor:pointer;border:1px solid #f0f0f0;transition:all .15s" onmouseover="this.style.borderColor='#1677FF'" onmouseout="this.style.borderColor='#f0f0f0'"
             onclick="doShareProduct('${escJs(p._id||'')}','${escJs(p.titre||p.name||'Produit')}','${escJs(p.prix||p.price||0)}','${escJs(p.image||'')}',this.closest('.attachment-overlay'))">
-            ${p.image ? `<img src="${escHtml(p.image)}" style="width:100%;aspect-ratio:1;object-fit:cover" onerror="this.outerHTML='<div style=\\'width:100%;aspect-ratio:1;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:28px\\'>📦</div>'">` : '<div style="width:100%;aspect-ratio:1;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:28px">📦</div>'}
+            ${p.image ? `<img src="${escHtml(p.image)}" style="width:100%;aspect-ratio:1;object-fit:cover" onerror="imgAbsente(this)">` : '<div style="width:100%;aspect-ratio:1;background:#f0f0f0;display:flex;align-items:center;justify-content:center">' + ICO_DEFAUT + '</div>'}
             <div style="padding:6px;font-size:11px;font-weight:600;color:#333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(p.titre || p.name || 'Produit')}</div>
             <div style="padding:0 6px 6px;font-size:12px;font-weight:800;color:#FF4D4F">${fmtPrice(p.prix || p.price || 0)}</div>
           </div>`).join('')}
@@ -6828,7 +6919,7 @@ function showPlanChoicePopup() {
         <button onclick="choosePlan('pro')" style="flex:1;padding:16px;border:2px solid #2a7de1;border-radius:14px;background:#f0f6ff;cursor:pointer;text-align:left;transition:all 0.2s" onmouseover="this.style.borderColor='#1a5cb5'" onmouseout="this.style.borderColor='#2a7de1'">
           <div style="display:flex;align-items:center;justify-content:space-between">
             <div><strong style="font-size:16px">⭐ Abonnement</strong><br><span style="font-size:12px;color:#888">0% commission · 5$/mois fixe</span></div>
-            <div style="font-size:20px;font-weight:800;color:#2a7de1">$5<small style="font-size:12px;font-weight:400;color:#888">/mois</small></div>
+            <div style="font-size:20px;font-weight:800;color:#2a7de1">${fmtPrice(5)}<small style="font-size:12px;font-weight:400;color:#888">/mois</small></div>
           </div>
         </button>
       </div>
@@ -6889,16 +6980,16 @@ function showSubscribe() {
       <div style="background:${isAbonnement?'#eef4ff':'#fff'};border:2px solid ${isAbonnement?'#2a7de1':'#e0e0e0'};border-radius:14px;padding:16px;display:flex;align-items:center;gap:12px">
         <div style="font-size:32px">⭐</div>
         <div style="flex:1"><strong>Abonnement</strong><br><span style="font-size:12px;color:#888">0% commission · Frais fixe mensuel</span></div>
-        <div style="font-size:18px;font-weight:800;color:#2a7de1">$5<small style="font-size:11px;font-weight:400;color:#888">/mois</small></div>
+        <div style="font-size:18px;font-weight:800;color:#2a7de1">${fmtPrice(5)}<small style="font-size:11px;font-weight:400;color:#888">/mois</small></div>
       </div>
     </div>
     ${!isAbonnement ? `
     <label style="font-size:13px;color:#666;margin-bottom:8px;display:block">Durée</label>
     <select id="subMonths" style="width:100%;padding:14px 16px;border:1px solid #e0e0e0;border-radius:14px;font-size:15px;margin-bottom:16px;background:#fff">
-      <option value="1">1 mois - $5</option>
-      <option value="3">3 mois - $13.50 (-10%)</option>
-      <option value="6">6 mois - $27 (-10%)</option>
-      <option value="12">12 mois - $51 (-15%)</option>
+      <option value="1">1 mois - ${fmtPrice(5)}</option>
+      <option value="3">3 mois - ${fmtPrice(13.5)} (-10%)</option>
+      <option value="6">6 mois - ${fmtPrice(27)} (-10%)</option>
+      <option value="12">12 mois - ${fmtPrice(51)} (-15%)</option>
     </select>
     <button class="aisy-btn" onclick="upgradeToPro()">⭐ Passer à l'Abonnement</button>
     <div style="text-align:center;margin-top:12px;font-size:12px;color:#888">💰 Paiement simulé (démonstration)</div>` : '<p style="text-align:center;color:#00c853;font-weight:600">✅ Vous êtes déjà sur Abonnement</p>'}
@@ -7632,7 +7723,7 @@ async function loadVendorProducts() {
     }
     list.innerHTML = products.map(p => `
       <div class="v-prod-card">
-        <div class="v-prod-img" style="position:relative">${(p.images?.[0] || p.image) && ((p.images?.[0] || p.image).startsWith('http') || (p.images?.[0] || p.image).startsWith('data:')) ? `<img src="${p.images?.[0] || p.image}" alt="${p.titre}">` : `<span>${p.images?.[0] || p.image || '📦'}</span>`}${p.video ? '<span style="position:absolute;bottom:2px;right:2px;font-size:14px;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.5))">🎬</span>' : ''}</div>
+        <div class="v-prod-img" style="position:relative">${(p.images?.[0] || p.image) && ((p.images?.[0] || p.image).startsWith('http') || (p.images?.[0] || p.image).startsWith('data:')) ? `<img src="${p.images?.[0] || p.image}" alt="${p.titre}">` : `<span>${ICO_DEFAUT}</span>`}${p.video ? '<span style="position:absolute;bottom:2px;right:2px;font-size:14px;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.5))">🎬</span>' : ''}</div>
         <div class="v-prod-info">
           <div class="v-prod-name">${p.titre} ${p.video ? '🎬' : ''}</div>
           <div class="v-prod-meta">${p.category} • Stock: ${p.stock||0} • Ventes: ${p.salesCount||0} • <span class="v-prod-statut ${p.statut||'en_attente'}">${p.statut||'en_attente'}</span></div>
@@ -7673,7 +7764,9 @@ function showVendeurProduitAjouter() {
           </div>
         </div>
         <label for="categorie">Catégorie</label>
-        <input class="aisy-input" id="categorie" name="categorie" placeholder="Catégorie (ex: Véhicules)">
+        <input class="aisy-input" id="categorie" name="categorie" placeholder="Catégorie (ex: Véhicules)" oninput="gestionChampsCategorie()" onchange="gestionChampsCategorie()">
+        <!-- Champs spécifiques véhicule (masqués pour une catégorie d'animaux) -->
+        <div id="champVehicule">
         <div class="v-form-row">
           <div>
             <label for="marque">🚗 Marque</label>
@@ -7716,6 +7809,36 @@ function showVendeurProduitAjouter() {
         </div>
         <label for="documents">📄 Documents</label>
         <input class="aisy-input" id="documents" name="documents" placeholder="ex: Plaque, Douane, CNRC...">
+        </div>
+        <!-- Champs spécifiques animaux (affichés uniquement pour une catégorie d'animaux) -->
+        <div id="champAnimaux" style="display:none">
+          <div class="v-form-row">
+            <div>
+              <label for="race">Race</label>
+              <input class="aisy-input" id="race" name="race" placeholder="ex: Berger allemand">
+            </div>
+            <div>
+              <label for="age_animal">Âge</label>
+              <input class="aisy-input" id="age_animal" name="age_animal" placeholder="ex: 2 mois">
+            </div>
+          </div>
+          <div class="v-form-row">
+            <div>
+              <label for="sexe">Sexe</label>
+              <select class="aisy-input" id="sexe" name="sexe">
+                <option value="">Sélectionnez</option>
+                <option value="Mâle">Mâle</option>
+                <option value="Femelle">Femelle</option>
+              </select>
+            </div>
+            <div>
+              <label for="vaccination">Vaccination</label>
+              <input class="aisy-input" id="vaccination" name="vaccination" placeholder="ex: 2 doses">
+            </div>
+          </div>
+          <label for="carnet_sante">Carnet de santé</label>
+          <input class="aisy-input" id="carnet_sante" name="carnet_sante" placeholder="ex: À jour, antiparasitaire">
+        </div>
         <div style="display:flex;gap:16px;margin:8px 0 12px">
           <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" name="prix_negociable" id="prix_negociable"> Prix négociable</label>
           <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" name="livraison" id="livraison"> Livraison</label>
@@ -7913,6 +8036,7 @@ async function uploadVendeurProduit(event) {
       const obj = { titre, description: desc, price: prixVal, stock: parseInt(fd.get('stock'))||0, category: fd.get('categorie')||'Autre', images, video: videoUrl, motsCles, statut: 'publié', vendeur_id: vid, seller_name: vendeurUser.company_name || vendeurUser.full_name || 'Vendeur', salesCount: 0, rating: 0, reviews: 0, createdAt: fbServerTimestamp(),
         marque: fd.get('marque')||'', annee: fd.get('annee')||'', transmission: fd.get('transmission')||'', carburant: fd.get('carburant')||'',
         localisation: fd.get('localisation')||'', couleur: fd.get('couleur')||'', documents: fd.get('documents')||'',
+        race: fd.get('race')||'', age_animal: fd.get('age_animal')||'', sexe: fd.get('sexe')||'', vaccination: fd.get('vaccination')||'', carnet_sante: fd.get('carnet_sante')||'',
         prix_negociable: !!fd.get('prix_negociable'), livraison: !!fd.get('livraison'), garantie: !!fd.get('garantie'), seller_id: vid
       };
       await fbDb.collection('products').doc(prodId).set(obj);
@@ -7925,6 +8049,7 @@ async function uploadVendeurProduit(event) {
       const obj = { titre, description: desc, price: parseFloat(fd.get('prix')), stock: parseInt(fd.get('stock'))||0, category: fd.get('categorie')||'Autre', images: [], video: null, motsCles, statut: 'publié', vendeur_id: 'local', seller_name: vendeurUser?.company_name || vendeurUser?.full_name || 'Vendeur', salesCount: 0, rating: 0, _id: 'local_'+Date.now(),
         marque: fd.get('marque')||'', annee: fd.get('annee')||'', transmission: fd.get('transmission')||'', carburant: fd.get('carburant')||'',
         localisation: fd.get('localisation')||'', couleur: fd.get('couleur')||'', documents: fd.get('documents')||'',
+        race: fd.get('race')||'', age_animal: fd.get('age_animal')||'', sexe: fd.get('sexe')||'', vaccination: fd.get('vaccination')||'', carnet_sante: fd.get('carnet_sante')||'',
         prix_negociable: !!fd.get('prix_negociable'), livraison: !!fd.get('livraison'), garantie: !!fd.get('garantie'), reviews: 0
       };
       // Compress + convert images to small base64
@@ -8732,7 +8857,7 @@ function applyCatalogueFilter() {
         ${p.rating >= 4.8 ? '<span class="tag">⭐ Top</span>' : ''}
         ${hasImg
           ? `<img src="${pImg}" alt="${escHtml(p.name)}" style="width:100%;height:100%;object-fit:cover;border-radius:0">`
-          : `<span>${pImg || '📦'}</span>`}
+          : `<span>${ICO_DEFAUT}</span>`}
       </div>
       <div class="aisy-card-body">
         <div class="aisy-card-name">${escHtml(p.name)}</div>
@@ -8781,7 +8906,7 @@ function renderAITrending() {
       <div class="hcard-img">
         ${p.image && (p.image.startsWith('http') || p.image.startsWith('data:'))
           ? `<img src="${p.image}" alt="${p.name}" loading="lazy">`
-          : `<span>${p.image || '📦'}</span>`}
+          : `<span>${ICO_DEFAUT}</span>`}
       </div>
       <div class="hcard-body">
         <div class="hcard-name">${p.name}</div>
@@ -8856,7 +8981,7 @@ function renderAIBillboard() {
         <div class="ai-slide-img">
           ${p.image && (p.image.startsWith('http') || p.image.startsWith('data:'))
             ? `<img src="${p.image}" alt="${p.name}" loading="lazy">`
-            : `<span style="font-size:40px">${p.image || '📦'}</span>`}
+            : `<span style="font-size:40px">${ICO_DEFAUT}</span>`}
         </div>
         <div class="ai-slide-info">
           <h3>${p.name}</h3>
@@ -9125,7 +9250,7 @@ function aiSearch() {
         ${p.rating >= 4.8 ? '<span class="tag">⭐ Top</span>' : ''}
         ${hasImg
           ? `<img src="${pImg}" alt="${escHtml(p.name)}" style="width:100%;height:100%;object-fit:cover;border-radius:0">`
-          : `<span>${pImg || '📦'}</span>`}
+          : `<span>${ICO_DEFAUT}</span>`}
       </div>
       <div class="aisy-card-body">
         <div class="aisy-card-name">${escHtml(p.name)}</div>
