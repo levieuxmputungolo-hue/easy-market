@@ -2042,6 +2042,11 @@
           <h3>📬 Contact</h3>
           <p>📧 <strong>aisymarket@gmail.com</strong><br>📞 <strong>+243983024756</strong></p>
         </div>
+        <div class="help-section" style="text-align:center">
+          <p style="font-size:12px;color:#888;margin:0">Version installée : <strong id="appVersion">v15</strong></p>
+          <button class="aisy-btn aisy-btn-sm aisy-btn-outline" onclick="forcerMiseAJour()" style="font-size:12px;margin-top:8px">🔄 Vérifier les mises à jour</button>
+          <button class="aisy-btn aisy-btn-sm" onclick="forcerMiseAJourComplete()" style="font-size:12px;background:#1677FF;color:#fff;margin-top:8px">🚀 Forcer la mise à jour</button>
+        </div>
         <div class="help-section" style="border-bottom:none;text-align:center">
           <p style="font-weight:700;color:#2a7de1;font-size:15px">Easy Market RDC – Le grand marché en ligne du Congo</p>
         </div>
@@ -10181,17 +10186,139 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 <script>
-if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('/sw.js').then(function(reg){
-    reg.addEventListener('updatefound',function(){
-      var nw=reg.installing;
-      if(nw){nw.addEventListener('statechange',function(){
-        if(nw.state==='installed'&&navigator.serviceWorker.controller){
-          if(confirm('Easy Market a une mise a jour. Recharger ?')){window.location.reload()}
-        }
-      })}
+// ─── MISE A JOUR FORCEE (telephone + ordinateur) ───
+// Sur telephone, le navigateur ne re-verifie le service worker qu'au plus une
+// fois par 24 h : sans verification forcee, l'utilisateur reste bloque sur
+// l'ancienne version. On verifie donc au demarrage, a chaque retour au
+// premier plan et toutes les 60 s — puis on RECHARGE TOUT SEUL.
+var VERSION_APP = 'v15';           // doit correspondre a SW_VERSION dans sw.js
+var swReg = null, majEnAttente = false, rechargementFait = false;
+
+function champSaisieActif() {
+  var a = document.activeElement;
+  return !!a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || !!a.isContentEditable);
+}
+function rechargerMaintenant() {
+  if (rechargementFait) return;
+  rechargementFait = true;
+  var b = document.getElementById('majBanner');
+  if (b) b.remove();
+  window.location.reload();
+  // Si le navigateur a refuse le rechargement (onglet cache), on retente.
+  setTimeout(function() { rechargementFait = false; }, 15000);
+}
+function signalerMiseAJourPrete() {
+  if (majEnAttente) return;
+  majEnAttente = true;
+  if (champSaisieActif()) {
+    afficherBanniereMaj();       // on n'interrompt JAMAIS une saisie en cours
+    return;
+  }
+  // Rien en cours → la mise a jour s'applique toute seule.
+  setTimeout(function() { if (majEnAttente && !champSaisieActif()) rechargerMaintenant(); }, 1500);
+}
+function afficherBanniereMaj() {
+  if (document.getElementById('majBanner')) return;
+  var b = document.createElement('div');
+  b.id = 'majBanner';
+  b.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:10001;background:linear-gradient(135deg,#2a7de1,#1a5fb0);color:#fff;padding:12px 14px;display:flex;align-items:center;gap:12px;box-shadow:0 -4px 18px rgba(0,0,0,.28);animation:slideUp .3s ease';
+  b.innerHTML = '<div style="width:38px;height:38px;border-radius:10px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🔄</div>' +
+    '<div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:700">Nouvelle version ' + VERSION_APP + ' disponible</div>' +
+    '<div style="font-size:12px;opacity:.9">Mise à jour automatique, rien n\'est perdu</div></div>' +
+    '<button type="button" style="padding:9px 16px;border:none;border-radius:10px;background:#fff;color:#1a5fb0;font-weight:800;font-size:13px;cursor:pointer;flex-shrink:0">Mettre à jour</button>';
+  b.querySelector('button').onclick = function() { rechargerMaintenant(); };
+  document.body.appendChild(b);
+}
+function verifierMiseAJour() {
+  if (!swReg) return;
+  try { var p = swReg.update(); if (p && p.catch) p.catch(function() {}); } catch (err) {}
+}
+function suivreInstallation(sw) {
+  if (!sw) return;
+  sw.addEventListener('statechange', function() {
+    // 'installed' + un service worker controlait deja la page = mise a jour
+    if (sw.state === 'installed' && navigator.serviceWorker.controller) signalerMiseAJourPrete();
+  });
+}
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').then(function(reg) {
+    swReg = reg;
+    suivreInstallation(reg.installing);
+    reg.addEventListener('updatefound', function() { suivreInstallation(reg.installing); });
+    // Une mise a jour deja telechargee et en attente au chargement de la page
+    if (reg.waiting && navigator.serviceWorker.controller) signalerMiseAJourPrete();
+
+    // ── VERIFICATIONS FORCEES ──
+    setTimeout(verifierMiseAJour, 3000);
+    setTimeout(verifierMiseAJour, 30000);
+    setInterval(verifierMiseAJour, 60000);
+
+    // Retour au premier plan (app relancee depuis l'ecran d'accueil)
+    document.addEventListener('visibilitychange', function() {
+      if (document.hidden) {
+        if (majEnAttente) rechargerMaintenant();   // mise a jour appliquee en tache de fond
+      } else {
+        verifierMiseAJour();
+      }
     });
-  }).catch(function(){});
+    window.addEventListener('focus', verifierMiseAJour);
+    // Fin d'une saisie : la mise a jour peut enfin s'appliquer
+    document.addEventListener('focusout', function() {
+      setTimeout(function() { if (majEnAttente && !champSaisieActif()) rechargerMaintenant(); }, 400);
+    });
+  }).catch(function() {});
+
+  // Le nouveau service worker prend la main → on recharge pour l'afficher
+  navigator.serviceWorker.addEventListener('controllerchange', function() {
+    if (majEnAttente) rechargerMaintenant();
+  });
+
+  // Le service worker annonce qu'une nouvelle version est activee
+  navigator.serviceWorker.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'SW_MAJ_PRETE' && e.data.version && e.data.version !== VERSION_APP) {
+      signalerMiseAJourPrete();   // versions differentes = la page est ancienne
+    }
+  });
+}
+
+// ── Verification manuelle depuis « À propos » ──
+function forcerMiseAJour(){
+  verifierMiseAJour();
+  if (typeof toast === 'function') toast('Vérification de la mise à jour…', '');
+  setTimeout(function(){
+    if (typeof toast !== 'function') return;
+    if (majEnAttente) toast('🔄 Mise à jour en cours…', '');
+    else toast('✅ Application à jour (version ' + VERSION_APP + ')', '');
+  }, 2500);
+}
+var majVersionElt = document.getElementById('appVersion');
+if (majVersionElt) majVersionElt.textContent = VERSION_APP;
+
+// ── Remise a jour COMPLETE (dernier recours sur telephone bloque) ──
+// Supprime tous les caches, libere le service worker puis recharge l'application
+// depuis le reseau : impossible de rester sur une ancienne version.
+function forcerMiseAJourComplete(){
+  if (!confirm('Forcer la mise à jour complète ?\n\nTous les caches seront vidés et l\'application se rechargera.')) return;
+  toast('🚀 Remise à jour complète…', '');
+  var recharger = function(){
+    setTimeout(function(){
+      window.location.href = window.location.pathname + '?maj=' + Date.now();
+    }, 400);
+  };
+  var taches = [];
+  if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+    taches.push(navigator.serviceWorker.getRegistrations().then(function(liste) {
+      return Promise.all(liste.map(function(r) { try { return r.unregister(); } catch (e) { return false; } }));
+    }).catch(function() {}));
+  }
+  if (window.caches && caches.keys) {
+    taches.push(caches.keys().then(function(keys) {
+      return Promise.all(keys.map(function(k) { return caches.delete(k); }));
+    }).catch(function() {}));
+  }
+  try { localStorage.removeItem('aisy_maj'); } catch (e) {}
+  Promise.all(taches).then(recharger).catch(recharger);
 }
 var deferredPrompt=null;
 window.addEventListener('beforeinstallprompt',function(e){

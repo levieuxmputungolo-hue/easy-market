@@ -1,4 +1,8 @@
-const CACHE_NAME = 'easymarket-v13';
+// Version du cache : A CHAQUE MISE EN JOUR, incrementer (v14, v15, ...).
+// Au 'activate', tous les anciens caches sont supprimes → le telephone
+// ne peut plus servir une version anterieure de l'application.
+const CACHE_NAME = 'easymarket-v15';
+const SW_VERSION = 'v15';
 const STATIC_ASSETS = [
   '/manifest.json',
   '/assets/logo.svg',
@@ -11,7 +15,14 @@ const STATIC_ASSETS = [
 self.addEventListener('install', function(e) {
   e.waitUntil(
     caches.open(CACHE_NAME).then(function(cache) {
-      return cache.addAll(STATIC_ASSETS);
+      // ⚠️ cache.add() echoue si UN SEUL element est injoignable (CDN de
+      // polices/icônes coupé, réseau mobile instable) → l'installation de la
+      // mise a jour ECHOUE et le telephone reste bloque sur l'ancienne version.
+      // Chaque element est donc mis en cache independamment, et on force le
+      // reseau (cache:'reload') pour ne pas precacher un fichier perime.
+      return Promise.all(STATIC_ASSETS.map(function(url) {
+        return cache.add(new Request(url, { cache: 'reload' })).catch(function() {});
+      }));
     })
   );
   self.skipWaiting();
@@ -23,6 +34,14 @@ self.addEventListener('activate', function(e) {
       return Promise.all(
         keys.filter(function(k) { return k !== CACHE_NAME; }).map(function(k) { return caches.delete(k); })
       );
+    }).then(function() {
+      // On previent les pages ouvertes (app en arriere-plan sur telephone)
+      // qu'une nouvelle version est activee : elles rechargent immediatement.
+      return self.clients.matchAll({ type: 'window' }).then(function(liste) {
+        liste.forEach(function(c) {
+          try { c.postMessage({ type: 'SW_MAJ_PRETE', version: SW_VERSION }); } catch (err) {}
+        });
+      });
     })
   );
   self.clients.claim();
