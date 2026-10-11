@@ -79,6 +79,7 @@ async def init_payment(data: dict, current_user: dict = Depends(get_current_user
     amount = float(data.get("amount", 0))
     email = data.get("email", current_user.get("email", ""))
     order_id = data.get("order_id", generate_order_id())
+    purpose = data.get("purpose", "commande")
 
     if operator not in OPERATORS:
         raise HTTPException(400, "Operateur non supporte")
@@ -122,6 +123,7 @@ async def init_payment(data: dict, current_user: dict = Depends(get_current_user
         "meta": {
             "order_id": order_id,
             "operator": operator,
+            "purpose": purpose,
         },
     }
 

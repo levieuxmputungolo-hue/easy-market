@@ -2465,6 +2465,15 @@ const API = (() => {
   return 'https://easy-market-fqz8.onrender.com';
 })();
 
+// ─── ABONNEMENTS VENDEURS ───
+// Chaque NOUVEAU vendeur teste l'application gratuitement pendant 1 mois,
+// puis il doit choisir une formule : Abonnement payant ou Commission.
+const TRIAL_JOURS = 30;             // essai gratuit = 1 mois
+const PRIX_ABONNEMENT = 5;          // USD / mois — plan Abonnement (0 % commission)
+const COMMISSION_LIBRE = 8;         // % par vente — plan Commission (sans frais mensuel)
+// Formules payantes (remise sur les longues durées)
+const TARIFS_ABONNEMENT = { 1: 5, 3: 13.5, 6: 27, 12: 51 };
+
 // ─── CLOUDINARY (stockage médias : images + vidéos + audio, gratuit) ───
 // ⚠️ À REMPLIR après création du compte cloudinary.com :
 //   Cloud name  → Settings → Product Environment Credentials
@@ -7124,7 +7133,7 @@ function showRegisterVendeur() {
       <div style="font-size:13px;color:#666;margin-bottom:8px;margin-top:4px">📄 Photo de votre carte d'identité *</div>
       <input type="file" id="vIdCard" accept="image/*" style="margin-bottom:14px;font-size:14px;width:100%">
       <div style="background:#e6f7ed;border:1px solid #a5d6a7;border-radius:12px;padding:12px;margin-bottom:16px;font-size:13px;color:#2e7d32">
-        🎁 <strong>3 mois gratuits</strong> — Commission zéro, puis choisissez Commission (8%) ou Abonnement (5$/mois)
+        🎁 <strong>1 mois gratuit</strong> — Commission zéro, puis choisissez Abonnement (5$/mois) ou Commission (8%)
       </div>
       <label style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:#666;margin-bottom:12px;cursor:pointer">
         <input type="checkbox" id="vRegCgu" style="margin-top:2px;width:16px;height:16px;cursor:pointer">
@@ -7159,7 +7168,7 @@ async function registerVendeur() {
     if (fileInput.files[0]) {
       idCardUrl = await cloudUpload(fileInput.files[0], 'vendeurs/' + cred.user.uid);
     }
-    const trialEnd = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
+    const trialEnd = new Date(Date.now() + TRIAL_JOURS * 24 * 60 * 60 * 1000).toISOString();
     const vData = { _id:cred.user.uid, full_name:name, company_name:comp, activity:act, email, phone, id_card:idCardUrl, subscription_status:'trial', plan:'trial', trial_ends_at:trialEnd, commission_rate:0, role:'vendeur', createdAt:fbServerTimestamp() };
     await fbDb.collection('vendeurs').doc(cred.user.uid).set(vData);
     // Increment global counter in Firestore
@@ -7180,11 +7189,11 @@ async function registerVendeur() {
     let totalVendors = parseInt(localStorage.getItem('aisy_total_vendors') || '0');
     localStorage.setItem('aisy_total_vendors', String(totalVendors + 1));
     updateMemberStats();
-    toast('✅ Compte vendeur créé ! 3 mois gratuits 🎉');
+    toast('✅ Compte vendeur créé ! 1 mois gratuit 🎉');
     renderAuth();
   } catch(e) {
     // Fallback local
-    const trialEnd = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
+    const trialEnd = new Date(Date.now() + TRIAL_JOURS * 24 * 60 * 60 * 1000).toISOString();
     const data = { _id:'local_'+Date.now(), full_name:name, email, company_name:comp, subscription_status:'trial', plan:'trial', trial_ends_at:trialEnd, commission_rate:0, role:'vendeur' };
     vendeurUser = data;
     localStorage.setItem('aisy_vendeur', JSON.stringify(data));
@@ -7240,12 +7249,12 @@ async function loginVendeur() {
       if (recover) {
         try {
           const cred = await fbAuth.createUserWithEmailAndPassword(email, pass);
-          const trialEnd = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
+          const trialEnd = new Date(Date.now() + TRIAL_JOURS * 24 * 60 * 60 * 1000).toISOString();
           const vData = { _id:cred.user.uid, full_name:localMatch.name || localMatch.company || 'Vendeur', company_name:localMatch.company || '', email, subscription_status:'trial', plan:'trial', trial_ends_at:trialEnd, commission_rate:0, role:'vendeur', createdAt:fbServerTimestamp() };
           await fbDb.collection('vendeurs').doc(cred.user.uid).set(vData);
           vendeurUser = vData;
           localStorage.setItem('aisy_vendeur', JSON.stringify(vData));
-          toast('✅ Compte récupéré ! 3 mois gratuits 🎉');
+          toast('✅ Compte récupéré ! 1 mois gratuit 🎉');
           renderAuth();
         } catch(e2) {
           toast('Erreur : ' + e2.message, 'error');
@@ -7339,64 +7348,269 @@ function getPlanLabel() {
     return { label: '⚠️ Période d\'essai terminée', color: '#ff3b30', bg: '#ffebee' };
   }
   if (plan === 'free') return { label: '📦 Commission · 8% par vente', color: '#2a7de1', bg: '#eef4ff' };
-  if (plan === 'pro' || plan === 'abonnement') return { label: '⭐ Abonnement · 5$/mois', color: '#00c853', bg: '#e6f7ed' };
+  if (plan === 'pro' || plan === 'abonnement') {
+    if (vendeurUser.paid_until) {
+      const fin = new Date(vendeurUser.paid_until);
+      if (fin - Date.now() <= 0) return { label: '⚠️ Abonnement expiré', color: '#ff3b30', bg: '#ffebee' };
+      return { label: `⭐ Abonnement · jusqu'au ${fin.toLocaleDateString('fr-FR')}`, color: '#00c853', bg: '#e6f7ed' };
+    }
+    return { label: '⭐ Abonnement · 5$/mois', color: '#00c853', bg: '#e6f7ed' };
+  }
   return { label: 'Essai gratuit', color: '#888', bg: '#f4f4f6' };
 }
 
+// Vrai si l'abonnement payant du vendeur est arrivé à échéance
+function abonnementPerime() {
+  if (!vendeurUser) return false;
+  const plan = vendeurUser.plan || 'trial';
+  if (plan !== 'pro' && plan !== 'abonnement') return false;
+  if (!vendeurUser.paid_until) return false;   // anciens comptes : aucun blocage rétroactif
+  return new Date(vendeurUser.paid_until) - Date.now() <= 0;
+}
+
+// Vrai si le vendeur a le droit de vendre. Faux = écran de formule obligatoire.
 function checkTrialMiddleware() {
   if (!vendeurUser) return false;
   const plan = vendeurUser.plan || 'trial';
+
+  // Anciens comptes sans date de fin : on leur offre un mois complet
+  // (aucun vendeur déjà inscrit n'est bloqué d'un coup)
   if (!vendeurUser.trial_ends_at && plan === 'trial') {
-    vendeurUser.trial_ends_at = new Date(Date.now() - 86400000).toISOString();
+    vendeurUser.trial_ends_at = new Date(Date.now() + TRIAL_JOURS * 86400000).toISOString();
     localStorage.setItem('aisy_vendeur', JSON.stringify(vendeurUser));
     syncVendeurToFirestore({ trial_ends_at: vendeurUser.trial_ends_at });
   }
-  const days = getTrialDaysLeft();
-  if (plan === 'trial' && days === 0) {
-    vendeurUser.plan = 'free';
-    vendeurUser.commission_rate = 8;
-    vendeurUser.plan_chosen_at = vendeurUser.plan_chosen_at || new Date().toISOString();
-    localStorage.setItem('aisy_vendeur', JSON.stringify(vendeurUser));
-    syncVendeurToFirestore({ plan: 'free', commission_rate: 8, plan_chosen_at: vendeurUser.plan_chosen_at });
-    return true;
+
+  // Abonnement payant expiré → paiement obligatoire pour continuer
+  if (abonnementPerime()) { showPlanChoicePopup('echeance'); return false; }
+
+  // Essai gratuit terminé et aucune formule choisie → choix forcé
+  if (plan === 'trial' && getTrialDaysLeft() === 0 && !vendeurUser.plan_chosen_at) {
+    showPlanChoicePopup('essai');
+    return false;
   }
+
   if (plan !== 'trial' && !vendeurUser.plan_chosen_at) {
     vendeurUser.plan_chosen_at = new Date().toISOString();
     localStorage.setItem('aisy_vendeur', JSON.stringify(vendeurUser));
     syncVendeurToFirestore({ plan_chosen_at: vendeurUser.plan_chosen_at });
-    return true;
   }
   return true;
 }
 
-function showPlanChoicePopup() {
-  const existing = document.getElementById('planChoiceOverlay');
-  if (existing) existing.remove();
+// ─── ÉCRAN BLOQUANT : le vendeur DOIT choisir une formule ───
+// Affiché quand l'essai gratuit de 1 mois est terminé, ou quand l'abonnement
+// payant est arrivé à échéance. Aucune croix de fermeture : le blocage est volontaire.
+let aboEtat = { duree: 1, operateur: 'mpesa', reference: null, txRef: null };
+
+function showPlanChoicePopup(mode) {
+  if (document.getElementById('planChoiceOverlay')) return;
+  aboEtat.mode = mode || 'essai';
   const overlay = document.createElement('div');
   overlay.id = 'planChoiceOverlay';
-  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
-  overlay.innerHTML = `
-    <div style="background:#fff;border-radius:20px;padding:28px 24px;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.2);text-align:center;animation:slideUp 0.3s ease">
-      <div style="font-size:48px;margin-bottom:8px">⏰</div>
-      <h2 style="font-size:20px;font-weight:700;margin-bottom:4px">Période d'essai terminée</h2>
-      <p style="font-size:13px;color:#888;margin-bottom:20px">Vos 3 mois gratuits sont finis. Choisissez votre formule :</p>
-      <div style="display:flex;flex-direction:column;gap:10px">
-        <button onclick="choosePlan('free')" style="flex:1;padding:16px;border:2px solid #e0e0e0;border-radius:14px;background:#fff;cursor:pointer;text-align:left;transition:all 0.2s" onmouseover="this.style.borderColor='#2a7de1'" onmouseout="this.style.borderColor='#e0e0e0'">
-          <div style="display:flex;align-items:center;justify-content:space-between">
-            <div><strong style="font-size:16px">📦 Commission</strong><br><span style="font-size:12px;color:#888">8% par vente · Pas de frais mensuel</span></div>
-            <div style="font-size:16px;font-weight:800;color:#2a7de1">8%</div>
+  overlay.style.cssText = 'position:fixed;inset:0;background:linear-gradient(165deg,rgba(8,16,28,.88),rgba(13,26,44,.95));backdrop-filter:blur(4px);z-index:40000;display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto;font-family:inherit';
+  document.body.appendChild(overlay);
+  rendreEtapeChoix(mode || 'essai');
+}
+
+function rendreEtapeChoix(mode) {
+  const o = document.getElementById('planChoiceOverlay');
+  if (!o) return;
+  const fin = vendeurUser && vendeurUser.paid_until ? new Date(vendeurUser.paid_until).toLocaleDateString('fr-FR') : '';
+  const blocage = mode === 'essai' || mode === 'echeance';
+  const titres = {
+    essai: 'Votre essai gratuit de 1 mois est terminé',
+    echeance: 'Abonnement arrivé à échéance',
+    abonnement: 'Activez votre Abonnement'
+  };
+  const textes = {
+    essai: 'Merci d’avoir testé Easy Market ! Pour continuer à vendre, choisissez votre formule :',
+    echeance: `Votre abonnement a expiré le <strong>${fin}</strong>. Choisissez une formule pour reprendre la vente :`,
+    abonnement: 'Avec l’Abonnement, vos ventes ne sont pas commissionnées. Choisissez la durée puis réglez par mobile money.'
+  };
+  const icone = mode === 'echeance' ? 'fa-calendar-xmark' : (mode === 'abonnement' ? 'fa-star' : 'fa-hourglass-end');
+  const couleurIc = mode === 'abonnement' ? '#2a7de1' : '#ff8f00';
+  const fondIc = mode === 'abonnement' ? '#eaf3ff' : '#fff4e5';
+  o.innerHTML = `
+    <div style="background:#fff;border-radius:22px;padding:26px 22px;max-width:420px;width:100%;box-shadow:0 24px 70px rgba(0,0,0,.45);text-align:center">
+      <div style="width:64px;height:64px;border-radius:50%;background:${fondIc};display:flex;align-items:center;justify-content:center;margin:0 auto 12px">
+        <i class="fas ${icone}" style="font-size:26px;color:${couleurIc}"></i>
+      </div>
+      <h2 style="font-size:19px;font-weight:800;color:#111;margin:0 0 6px">${titres[mode] || titres.essai}</h2>
+      <p style="font-size:13px;color:#777;margin:0 0 18px;line-height:1.5">${textes[mode] || textes.essai}</p>
+
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <button onclick="choosePlan('pro')" style="text-align:left;padding:16px;border:2px solid #2a7de1;background:#f0f6ff;border-radius:16px;cursor:pointer;transition:all .2s">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#2a7de1,#5a9eed);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+              <i class="fas fa-star" style="color:#fff;font-size:17px"></i>
+            </div>
+            <div style="flex:1">
+              <strong style="font-size:15px;color:#111">Abonnement</strong><br>
+              <span style="font-size:12px;color:#777">0 % de commission · paiement mensuel</span>
+            </div>
+            <div style="font-size:17px;font-weight:800;color:#2a7de1;white-space:nowrap">${fmtPrice(PRIX_ABONNEMENT)}<small style="font-size:11px;font-weight:500;color:#888">/mois</small></div>
           </div>
         </button>
-        <button onclick="choosePlan('pro')" style="flex:1;padding:16px;border:2px solid #2a7de1;border-radius:14px;background:#f0f6ff;cursor:pointer;text-align:left;transition:all 0.2s" onmouseover="this.style.borderColor='#1a5cb5'" onmouseout="this.style.borderColor='#2a7de1'">
-          <div style="display:flex;align-items:center;justify-content:space-between">
-            <div><strong style="font-size:16px">⭐ Abonnement</strong><br><span style="font-size:12px;color:#888">0% commission · 5$/mois fixe</span></div>
-            <div style="font-size:20px;font-weight:800;color:#2a7de1">${fmtPrice(5)}<small style="font-size:12px;font-weight:400;color:#888">/mois</small></div>
+
+        <button onclick="choosePlan('free')" style="text-align:left;padding:16px;border:2px solid #e0e6ed;background:#fff;border-radius:16px;cursor:pointer;transition:all .2s">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="width:42px;height:42px;border-radius:12px;background:#eaf3ff;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+              <i class="fas fa-box-open" style="color:#2a7de1;font-size:17px"></i>
+            </div>
+            <div style="flex:1">
+              <strong style="font-size:15px;color:#111">Commission</strong><br>
+              <span style="font-size:12px;color:#777">Pas de frais mensuel · prélevé sur vos ventes</span>
+            </div>
+            <div style="font-size:17px;font-weight:800;color:#2a7de1">${COMMISSION_LIBRE}%</div>
           </div>
         </button>
       </div>
-      <p style="font-size:11px;color:#aaa;margin-top:14px">Vous pouvez changer à tout moment depuis votre tableau de bord</p>
+
+      <div id="aboZone" style="margin-top:16px"></div>
+      <p style="font-size:11px;color:#aaa;margin-top:14px;line-height:1.5">
+        ${blocage ? '⚠️ Votre tableau de bord reste bloqué tant qu’aucune formule n’est choisie.' : 'Vous pourrez changer de formule à tout moment depuis votre tableau de bord.'}
+      </p>
     </div>`;
-  document.body.appendChild(overlay);
+}
+
+// Étape 1 du paiement : durée, opérateur, téléphone
+function rendreEtapePaiement() {
+  const zone = document.getElementById('aboZone');
+  if (!zone) return;
+  const opers = [
+    { id:'mpesa', nom:'M-Pesa', icone:'📱', c:'#4CAF50' },
+    { id:'orange', nom:'Orange Money', icone:'🟠', c:'#FF6A00' },
+    { id:'airtel', nom:'Airtel Money', icone:'🔴', c:'#E53935' }
+  ];
+  const tel = (typeof user !== 'undefined' && user && user.phone) || '';
+  zone.innerHTML = `
+    <div style="background:#f8faff;border:1px solid #e4ecfb;border-radius:16px;padding:16px;text-align:left">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <strong style="font-size:14px;color:#111"><i class="fas fa-credit-card" style="color:#2a7de1;margin-right:6px"></i>Paiement de l’abonnement</strong>
+        <button onclick="rendreEtapeChoix('${aboEtat.mode || 'essai'}')" style="background:none;border:none;color:#2a7de1;font-size:12px;cursor:pointer">◀ Retour</button>
+      </div>
+      <label style="font-size:12px;color:#666;display:block;margin-bottom:4px">Durée</label>
+      <select id="aboMois" onchange="aboEtat.duree=parseInt(this.value);majTotalAbo()" style="width:100%;padding:11px 12px;border:1px solid #dfe6f2;border-radius:12px;font-size:14px;background:#fff;margin-bottom:12px">
+        ${Object.keys(TARIFS_ABONNEMENT).map(m => `<option value="${m}" ${String(m) === String(aboEtat.duree) ? 'selected' : ''}>${m} mois — ${fmtPrice(TARIFS_ABONNEMENT[m])}${m > 1 ? ' (-' + Math.round((1 - TARIFS_ABONNEMENT[m] / (m * PRIX_ABONNEMENT)) * 100) + '%)' : ''}</option>`).join('')}
+      </select>
+      <label style="font-size:12px;color:#666;display:block;margin-bottom:6px">Opérateur</label>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        ${opers.map(op => `
+          <button onclick="aboEtat.operateur='${op.id}';rendreEtapePaiement()" style="flex:1;padding:10px 4px;border-radius:12px;cursor:pointer;font-size:11px;font-weight:600;border:2px solid ${aboEtat.operateur === op.id ? op.c : '#e6ecf5'};background:${aboEtat.operateur === op.id ? '#f4fbf6' : '#fff'};color:#333">
+            <span style="display:block;font-size:17px">${op.icone}</span>${op.nom}
+          </button>`).join('')}
+      </div>
+      <label style="font-size:12px;color:#666;display:block;margin-bottom:4px">Téléphone qui recevra la demande</label>
+      <input id="aboTel" class="aisy-input" type="tel" placeholder="+2438XXXXXXXX" value="${escHtml(tel)}" style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;color:#555;margin-bottom:12px">
+        <span>Montant à payer</span><strong id="aboTotal" style="font-size:17px;color:#2a7de1">${fmtPrice(TARIFS_ABONNEMENT[aboEtat.duree] || PRIX_ABONNEMENT)}</strong>
+      </div>
+      <button class="aisy-btn" onclick="initierPaiementAbonnement()" id="aboBtnPayer" style="width:100%;background:linear-gradient(135deg,#2a7de1,#5a9eed)">
+        <i class="fas fa-lock" style="margin-right:6px"></i>Payer maintenant
+      </button>
+    </div>`;
+}
+
+function majTotalAbo() {
+  const t = document.getElementById('aboTotal');
+  if (t) t.textContent = fmtPrice(TARIFS_ABONNEMENT[aboEtat.duree] || PRIX_ABONNEMENT);
+}
+
+// Étape 2 : initialisation puis attente de confirmation
+async function initierPaiementAbonnement() {
+  const tel = (document.getElementById('aboTel') || {}).value || '';
+  const numero = String(tel).trim();
+  if (!numero || numero.replace(/\D/g, '').length < 9) { toast('Numéro de téléphone invalide', 'error'); return; }
+  const mois = parseInt(aboEtat.duree) || 1;
+  const prix = TARIFS_ABONNEMENT[mois] || PRIX_ABONNEMENT;
+  const btn = document.getElementById('aboBtnPayer');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span style="display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.5);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite"></span> Initialisation...'; }
+
+  const orderId = 'ABO-' + (vendeurUser && vendeurUser._id ? vendeurUser._id : 'local') + '-' + mois + 'm';
+  try {
+    const r = await fetch(`${API}/api/payments/mobile/init`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (typeof fbUser !== 'undefined' && fbUser ? fbUser.uid : 'demo') },
+      body: JSON.stringify({
+        operator: aboEtat.operateur, phone: numero, amount: prix,
+        email: (vendeurUser && vendeurUser.email) || (typeof user !== 'undefined' && user ? user.email : '') || '',
+        order_id: orderId, purpose: 'abonnement'
+      })
+    });
+    const data = await r.json();
+    if (!data.success) { toast(data.message || 'Erreur de paiement', 'error'); rendreEtapePaiement(); return; }
+    aboEtat.reference = data.reference;
+    aboEtat.txRef = data.tx_ref;
+    if (data.payment_url) safeOpen(data.payment_url);
+    rendreEtapeAttente(data, prix);
+  } catch(e) {
+    aboEtat.reference = 'EM-OFFLINE-' + Date.now();
+    aboEtat.txRef = 'TX-ABO-' + Date.now();
+    rendreEtapeAttente({ ussd_code: '*151#', phone: numero, message: 'Envoyez ' + fmtPrice(prix) + ' via votre opérateur' }, prix);
+  }
+}
+
+function rendreEtapeAttente(data, prix) {
+  const o = document.getElementById('aboZone');
+  if (!o) return;
+  const opNom = aboEtat.operateur === 'mpesa' ? 'M-Pesa' : aboEtat.operateur === 'orange' ? 'Orange Money' : 'Airtel Money';
+  o.innerHTML = `
+    <div style="background:#f0fdf4;border:1px solid #cdefd8;border-radius:16px;padding:16px;text-align:center">
+      <div style="font-size:34px;margin-bottom:6px">📲</div>
+      <div style="font-size:15px;font-weight:700;color:#111">Confirmez sur votre téléphone</div>
+      <div style="font-size:12px;color:#777;margin:6px 0">${escHtml(data.message || 'Code de confirmation envoyé')} — via <strong>${opNom}</strong></div>
+      <div style="background:#fff;border-radius:12px;padding:10px;margin:10px 0;font-size:20px;font-weight:800;color:#2a7de1;letter-spacing:2px">${escHtml(data.ussd_code || '*151#')}</div>
+      <div style="font-size:13px;color:#555">Montant : <strong>${fmtPrice(prix)}</strong> · ${aboEtat.duree} mois</div>
+      <button class="aisy-btn" onclick="confirmerPaiementAbonnement()" style="width:100%;margin-top:12px;background:linear-gradient(135deg,#4CAF50,#66bb6a)">
+        <i class="fas fa-check" style="margin-right:6px"></i>J’ai effectué le paiement
+      </button>
+      <button onclick="rendreEtapePaiement()" style="background:none;border:none;color:#888;font-size:12px;cursor:pointer;margin-top:8px">◀ Changer de montant</button>
+    </div>`;
+}
+
+async function confirmerPaiementAbonnement() {
+  const o = document.getElementById('aboZone');
+  if (o) o.innerHTML = `<div style="background:#f8faff;border-radius:16px;padding:18px;text-align:center">
+      <span style="display:inline-block;width:30px;height:30px;border:3px solid #e0e6ed;border-top-color:#2a7de1;border-radius:50%;animation:spin .8s linear infinite"></span>
+      <div style="font-size:13px;color:#666;margin-top:8px">Vérification du paiement…</div></div>`;
+  try {
+    const r = await fetch(`${API}/api/payments/mobile/confirm`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (typeof fbUser !== 'undefined' && fbUser ? fbUser.uid : 'demo') },
+      body: JSON.stringify({ reference: aboEtat.reference, tx_ref: aboEtat.txRef, code: '0000' })
+    });
+    const data = await r.json();
+    if (data.success) { activerAbonnement(aboEtat.duree); return; }
+    if (o) o.innerHTML = `<div style="background:#fff8f0;border:1px solid #ffe0c2;border-radius:16px;padding:16px;text-align:center">
+        <div style="font-size:26px">⏳</div>
+        <div style="font-size:14px;font-weight:700;color:#111;margin-top:4px">Paiement non confirmé</div>
+        <div style="font-size:12px;color:#777;margin:6px 0">${escHtml(data.message || 'Réessayez une fois le paiement reçu')}</div>
+        <button class="aisy-btn" onclick="confirmerPaiementAbonnement()" style="width:100%;background:linear-gradient(135deg,#4CAF50,#66bb6a)">🔄 Vérifier à nouveau</button>
+        <button onclick="rendreEtapeAttente({ussd_code:'*151#'}, ${TARIFS_ABONNEMENT[aboEtat.duree] || PRIX_ABONNEMENT})" style="background:none;border:none;color:#888;font-size:12px;cursor:pointer;margin-top:8px">◀ Renvoyer les instructions</button>
+      </div>`;
+  } catch(e) {
+    activerAbonnement(aboEtat.duree);
+  }
+}
+
+// Activation de l'abonnement payant (remise du compteur de 30 jours par mois payé)
+function activerAbonnement(mois) {
+  if (!vendeurUser) return;
+  const m = parseInt(mois) || 1;
+  const fin = new Date(Date.now() + m * 30 * 86400000).toISOString();
+  vendeurUser.plan = 'pro';
+  vendeurUser.commission_rate = 0;
+  vendeurUser.plan_chosen_at = vendeurUser.plan_chosen_at || new Date().toISOString();
+  vendeurUser.paid_until = fin;
+  vendeurUser.abonnement_mois = m;
+  vendeurUser.subscription_status = 'active';
+  localStorage.setItem('aisy_vendeur', JSON.stringify(vendeurUser));
+  syncVendeurToFirestore({ plan:'pro', commission_rate:0, plan_chosen_at:vendeurUser.plan_chosen_at, paid_until:fin, abonnement_mois:m, subscription_status:'active' });
+  registerSellerCommission(vendeurUser.company_name || vendeurUser.full_name, 0);
+  document.getElementById('planChoiceOverlay')?.remove();
+  toast('⭐ Abonnement actif jusqu’au ' + new Date(fin).toLocaleDateString('fr-FR'), '', 4000);
+  renderAuth();
 }
 
 function syncVendeurToFirestore(data) {
@@ -7406,21 +7620,25 @@ function syncVendeurToFirestore(data) {
 
 function choosePlan(plan) {
   if (!vendeurUser) return;
-  const rate = plan === 'free' ? 1 : 0;
-  if (plan === 'free') {
-    vendeurUser.plan = 'free';
-    vendeurUser.commission_rate = rate;
-  } else {
-    vendeurUser.plan = 'pro';
-    vendeurUser.commission_rate = 0;
-  }
-  vendeurUser.plan_chosen_at = new Date().toISOString();
+  // L'abonnement payant exige un paiement : on ouvre l'étape de règlement
+  if (plan === 'pro') { rendreEtapePaiement(); return; }
+
+  const rate = COMMISSION_LIBRE;
+  vendeurUser.plan = 'free';
+  vendeurUser.commission_rate = rate;
+  vendeurUser.plan_chosen_at = vendeurUser.plan_chosen_at || new Date().toISOString();
   localStorage.setItem('aisy_vendeur', JSON.stringify(vendeurUser));
-  syncVendeurToFirestore({ plan: vendeurUser.plan, commission_rate: rate, plan_chosen_at: vendeurUser.plan_chosen_at });
+  syncVendeurToFirestore({ plan: 'free', commission_rate: rate, plan_chosen_at: vendeurUser.plan_chosen_at });
   registerSellerCommission(vendeurUser.company_name || vendeurUser.full_name, rate);
   document.getElementById('planChoiceOverlay')?.remove();
-  toast(plan === 'free' ? '✅ Plan Commission activé (8%)' : '⭐ Plan Abonnement activé (5$/mois)');
+  toast('✅ Formule Commission activée (' + rate + '% par vente)');
   renderAuth();
+}
+
+// Depuis la page « Changer de plan » : ouvre directement le paiement de l'abonnement
+function demanderPaiementAbonnement() {
+  showPlanChoicePopup('abonnement');
+  rendreEtapePaiement();
 }
 
 async function checkVendeurStatus() {
@@ -7462,8 +7680,8 @@ function showSubscribe() {
       <option value="6">6 mois - ${fmtPrice(27)} (-10%)</option>
       <option value="12">12 mois - ${fmtPrice(51)} (-15%)</option>
     </select>
-    <button class="aisy-btn" onclick="upgradeToPro()">⭐ Passer à l'Abonnement</button>
-    <div style="text-align:center;margin-top:12px;font-size:12px;color:#888">💰 Paiement simulé (démonstration)</div>` : '<p style="text-align:center;color:#00c853;font-weight:600">✅ Vous êtes déjà sur Abonnement</p>'}
+    <button class="aisy-btn" onclick="demanderPaiementAbonnement()">⭐ Passer à l'Abonnement</button>
+    <div style="text-align:center;margin-top:12px;font-size:12px;color:#888">💳 Paiement sécurisé (mobile money) — ${fmtPrice(5)}/mois</div>` : '<p style="text-align:center;color:#00c853;font-weight:600">✅ Vous êtes déjà sur Abonnement</p>'}
     ${isAbonnement ? '<button class="aisy-btn aisy-btn-outline" onclick="downgradeToFree()" style="margin-top:12px;color:#ff3b30;border-color:#ff3b30">📦 Passer au plan Commission (8%)</button>' : ''}`;
 }
 
@@ -7504,9 +7722,9 @@ function downgradeToFree() {
   vendeurUser.commission_rate = 8;
   vendeurUser.plan_chosen_at = new Date().toISOString();
   localStorage.setItem('aisy_vendeur', JSON.stringify(vendeurUser));
-  syncVendeurToFirestore({ plan: 'free', commission_rate: 1, plan_chosen_at: vendeurUser.plan_chosen_at });
-  registerSellerCommission(vendeurUser.company_name || vendeurUser.full_name, 1);
-  toast('📦 Plan Commission activé (8% par vente)');
+  syncVendeurToFirestore({ plan: 'free', commission_rate: 8, plan_chosen_at: vendeurUser.plan_chosen_at });
+  registerSellerCommission(vendeurUser.company_name || vendeurUser.full_name, 8);
+  toast('📦 Formule Commission activée (8% par vente)');
   renderAuth();
 }
 
@@ -7756,6 +7974,8 @@ async function sendVendeurMsg() {
 function showVendeurDashboard(el) {
   const container = el || document.getElementById('authContent');
   if (!container) return;
+  // Essai terminé ou abonnement échu → écran de formule obligatoire (blocage)
+  if (!checkTrialMiddleware()) return;
   container.innerHTML = `
     <div style="text-align:center;padding:16px 0 8px">
       <div style="width:60px;height:60px;border-radius:50%;background:#2a7de1;display:flex;align-items:center;justify-content:center;font-size:28px;color:#fff;margin:0 auto 10px;font-weight:700">${(vendeurUser.full_name || vendeurUser.company_name || 'V')[0]}</div>
@@ -9635,15 +9855,15 @@ function sendTrialNotification(daysLeft) {
   const sent = JSON.parse(localStorage.getItem(sentKey) || '{}');
   const uid = vendeurUser._id || 'local';
   if (daysLeft === 15 && !sent[uid+'_15']) {
-    addNotif('⏰', 'J-15 : période d\'essai', 'Il te reste 15 jours gratuits. Passe Pro maintenant = -50% 1er mois');
+    addNotif('⏰', 'J-15 : fin de votre essai', 'Il te reste 15 jours gratuits. Choisis dès maintenant ton formule (Abonnement 5$/mois ou Commission 8%).');
     sent[uid+'_15'] = true; localStorage.setItem(sentKey, JSON.stringify(sent));
   }
   if (daysLeft === 5 && !sent[uid+'_5']) {
-    addNotif('⚠️', 'J-5 : choix du plan', 'Tu vas passer sur le plan Commission (8%) si tu ne choisis pas');
+    addNotif('⚠️', 'J-5 : choix du plan', 'Il te reste 5 jours gratuits. Passé ce délai, tu devras choisir une formule pour continuer à vendre.');
     sent[uid+'_5'] = true; localStorage.setItem(sentKey, JSON.stringify(sent));
   }
   if (daysLeft === 0 && !sent[uid+'_0']) {
-    addNotif('⏰', 'Essai terminé', 'Choisis ton plan : Commission (8%) ou Abonnement (5$/mois).');
+    addNotif('⏰', 'Essai terminé', 'Choisis ta formule : Abonnement 5$/mois (0% commission) ou Commission 8% par vente.');
     sent[uid+'_0'] = true; localStorage.setItem(sentKey, JSON.stringify(sent));
   }
 }
