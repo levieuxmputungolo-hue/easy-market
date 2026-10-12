@@ -1083,6 +1083,15 @@
     /* Enregistrement vocal en cours : le bouton passe au rouge */
     .cib-voice-btn.enregistrement { background:#ff3b30; color:#fff; animation:pulseMic 1.1s ease-in-out infinite; }
     .cib-voice-btn.enregistrement:hover { background:#ff3b30; color:#fff; }
+    /* Chronomètre visible pendant l'enregistrement : on sait combien de
+       temps on parle (il faut dépasser 1 seconde) */
+    .cib-voice-btn { position:relative; }
+    .mic-chrono {
+      position:absolute; top:-7px; right:-7px; min-width:18px; padding:0 3px;
+      height:15px; border-radius:8px; background:#ff3b30; color:#fff;
+      font-size:9px; font-weight:700; line-height:15px; text-align:center;
+      pointer-events:none; box-shadow:0 1px 3px rgba(0,0,0,.35);
+    }
     @keyframes pulseMic { 0%,100%{box-shadow:0 0 0 0 rgba(255,59,48,.45)} 50%{box-shadow:0 0 0 8px rgba(255,59,48,0)} }
     .cib-send-btn {
       width:42px; height:42px; border:none; border-radius:50%;
@@ -2070,7 +2079,7 @@
           <p>📧 <strong>aisymarket@gmail.com</strong><br>📞 <strong>+243983024756</strong></p>
         </div>
         <div class="help-section" style="text-align:center">
-          <p style="font-size:12px;color:#888;margin:0">Version installée : <strong id="appVersion">v17</strong></p>
+          <p style="font-size:12px;color:#888;margin:0">Version installée : <strong id="appVersion">v18</strong></p>
           <button class="aisy-btn aisy-btn-sm aisy-btn-outline" onclick="forcerMiseAJour()" style="font-size:12px;margin-top:8px">🔄 Vérifier les mises à jour</button>
           <button class="aisy-btn aisy-btn-sm" onclick="forcerMiseAJourComplete()" style="font-size:12px;background:#1677FF;color:#fff;margin-top:8px">🚀 Forcer la mise à jour</button>
         </div>
@@ -6227,6 +6236,8 @@ var msgMicRecording = false;
 var msgMicStream = null;
 var msgMicRecorder = null;
 var msgMicDebut = 0;   // horodatage de début : rejette les enregistrements trop courts
+var msgMicChrono = null;   // timer affiché sur le bouton pendant l'enregistrement
+var msgMicStarting = false; // micro en cours d'ouverture (anti double-clic)
 
 function filterConvs(filter, btn) {
   msgCurrentFilter = filter;
@@ -6284,46 +6295,99 @@ function renderFilteredConvList() {
   updateMsgBadge();
 }
 
+// Chronomètre affiché sur le bouton micro (l'utilisateur voit la durée)
+function demarrerChronoMic() {
+  majChronoMic();
+  if (msgMicChrono) clearInterval(msgMicChrono);
+  msgMicChrono = setInterval(majChronoMic, 500);
+}
+function majChronoMic() {
+  var micBtn = document.getElementById('micBtnMsg');
+  if (!micBtn || !msgMicDebut) return;
+  var t = Math.max(0, Math.round((Date.now() - msgMicDebut) / 1000));
+  var b = micBtn.querySelector('.mic-chrono');
+  if (!b) { b = document.createElement('span'); b.className = 'mic-chrono'; micBtn.appendChild(b); }
+  b.textContent = t + 's';
+  micBtn.title = 'Enregistrement ' + t + ' s — touchez pour envoyer';
+}
+function arreterChronoMic() {
+  if (msgMicChrono) { clearInterval(msgMicChrono); msgMicChrono = null; }
+  var micBtn = document.getElementById('micBtnMsg');
+  if (!micBtn) return;
+  var b = micBtn.querySelector('.mic-chrono');
+  if (b && b.parentNode) b.parentNode.removeChild(b);
+  micBtn.title = 'Enregistrer un message vocal';
+}
+
 function toggleMic() {
   var micBtn = document.getElementById('micBtnMsg');
   // ── Arrêt de l'enregistrement ──
   if (msgMicRecording) {
-    msgMicDebut = 0;
-    if (msgMicRecorder && msgMicRecorder.state === 'recording') msgMicRecorder.stop();
-    else if (msgMicStream) { msgMicStream.getTracks().forEach(function(t){ t.stop(); }); msgMicStream = null; }
     msgMicRecording = false;
+    arreterChronoMic();
+    if (msgMicRecorder && msgMicRecorder.state === 'recording') {
+      // NE PAS remettre msgMicDebut à 0 ici : onstop en a besoin pour
+      // calculer la durée. (C'était le bug : durée forcée à 0 →
+      // « Enregistrement trop court » à CHAQUE essai, même long.)
+      msgMicRecorder.stop();
+    } else {
+      msgMicDebut = 0;
+      if (msgMicStream) { msgMicStream.getTracks().forEach(function(t){ t.stop(); }); msgMicStream = null; }
+    }
     if (micBtn) { micBtn.classList.remove('enregistrement'); var ic = micBtn.querySelector('i'); if (ic) ic.className = 'fas fa-microphone'; }
     return;
   }
+  if (msgMicStarting) return;              // demande de micro déjà en cours
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     toast('Micro non disponible dans ce navigateur', 'error');
     return;
   }
+  msgMicStarting = true;
   navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+    msgMicStarting = false;
     msgMicStream = stream;
     var chunks = [];
-    var mr = new MediaRecorder(stream);
+    var mr;
+    try { mr = new MediaRecorder(stream); }
+    catch (e) {
+      stream.getTracks().forEach(function(t){ t.stop(); });
+      msgMicStream = null;
+      toast('Enregistrement audio non pris en charge sur ce navigateur', 'error');
+      return;
+    }
     msgMicRecorder = mr;
     mr.ondataavailable = function(e) { if (e.data && e.data.size > 0) chunks.push(e.data); };
     mr.onstop = function() {
+      // durée = heure d'arrêt - heure de début (msgMicDebut n'est remis à
+      // zéro qu'ICI, après calcul)
       var duree = msgMicDebut ? (Date.now() - msgMicDebut) : 0;
       msgMicDebut = 0;
+      arreterChronoMic();
       stream.getTracks().forEach(function(t){ t.stop(); });
       msgMicStream = null;
       msgMicRecording = false;
       if (micBtn) { micBtn.classList.remove('enregistrement'); var ic2 = micBtn.querySelector('i'); if (ic2) ic2.className = 'fas fa-microphone'; }
-      // Enregistrement trop court (faux clic) : on n'envoie rien
-      if (duree < 900 || !chunks.length) { toast('Enregistrement trop court', 'error'); return; }
+      if (duree < 900) {
+        toast('Vocal trop court (' + (duree / 1000).toFixed(1).replace('.', ',') +
+              ' s) : attendez au moins 1 seconde avant de toucher à nouveau', 'error', 5000);
+        return;
+      }
+      if (!chunks.length) {
+        toast('Aucune donnée audio reçue — réessayez (restez dans la conversation)', 'error', 4000);
+        return;
+      }
       var type = (mr.mimeType && mr.mimeType.indexOf('ogg') > -1) ? 'audio/ogg' : 'audio/webm';
       var blob = new Blob(chunks, { type: type });
       sendVoiceMsg(URL.createObjectURL(blob), blob);
     };
+    msgMicDebut = Date.now();
     mr.start();
     msgMicRecording = true;
-    msgMicDebut = Date.now();
+    demarrerChronoMic();
     if (micBtn) { micBtn.classList.add('enregistrement'); var ic3 = micBtn.querySelector('i'); if (ic3) ic3.className = 'fas fa-stop'; }
     toast('🎤 Enregistrement… touchez à nouveau pour envoyer', '');
   }).catch(function(err) {
+    msgMicStarting = false;
     toast((err && err.name === 'NotFoundError') ? 'Aucun microphone détecté sur cet appareil' : 'Autorisation micro refusée', 'error');
   });
 }
@@ -10237,7 +10301,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // fois par 24 h : sans verification forcee, l'utilisateur reste bloque sur
 // l'ancienne version. On verifie donc au demarrage, a chaque retour au
 // premier plan et toutes les 60 s — puis on RECHARGE TOUT SEUL.
-var VERSION_APP = 'v17';           // doit correspondre a SW_VERSION dans sw.js
+var VERSION_APP = 'v18';           // doit correspondre a SW_VERSION dans sw.js
 var swReg = null, majEnAttente = false, rechargementFait = false;
 
 function champSaisieActif() {
