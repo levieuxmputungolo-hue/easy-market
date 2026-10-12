@@ -982,11 +982,19 @@
     .typing-text { font-size:11px; color:#999; font-style:italic; }
 
     /* ─── QUICK CHIPS ─── */
+    /* 7 boutons (~764px) dans un ecran de 320 a 414px : la ligne défile
+       horizontalement. Détail iPhone : -webkit-overflow-scrolling + snap
+       pour un doigt, et dégradés de bord (classes fade-l / fade-r posées
+       en JS) pour MONTRER qu'il reste des boutons à droite. */
     .quick-chips {
       display:flex; gap:8px; padding:14px 16px 12px;
-      overflow-x:auto; flex-shrink:0; background:#f5f5f5;
+      overflow-x:auto; overflow-y:hidden; flex-shrink:0; background:#f5f5f5;
       border-top:1px solid #ececec;
       box-shadow:0 -6px 14px rgba(0,0,0,0.03);
+      -webkit-overflow-scrolling:touch;
+      overscroll-behavior-x:contain;
+      scroll-snap-type:x proximity;
+      scrollbar-width:none;
     }
     .quick-chips::-webkit-scrollbar { display:none; }
     .quick-chip {
@@ -994,6 +1002,21 @@
       border:1.5px solid #e0e0e0; background:#fff;
       font-size:12.5px; font-weight:600; cursor:pointer;
       color:#555; white-space:nowrap; transition:all .15s;
+      scroll-snap-align:start; -webkit-tap-highlight-color:transparent;
+    }
+    /* Repère visuel : bord droit atténué = "il reste des boutons" */
+    .quick-chips.fade-r {
+      -webkit-mask-image:linear-gradient(to right,#000 calc(100% - 34px),rgba(0,0,0,.12));
+      mask-image:linear-gradient(to right,#000 calc(100% - 34px),rgba(0,0,0,.12));
+    }
+    /* ...et bord atténué à gauche dès qu'on a commencé à faire défiler */
+    .quick-chips.fade-l {
+      -webkit-mask-image:linear-gradient(to left,#000 calc(100% - 34px),rgba(0,0,0,.12));
+      mask-image:linear-gradient(to left,#000 calc(100% - 34px),rgba(0,0,0,.12));
+    }
+    .quick-chips.fade-l.fade-r {
+      -webkit-mask-image:linear-gradient(to right,rgba(0,0,0,.12) 0,#000 34px,#000 calc(100% - 34px),rgba(0,0,0,.12) 100%);
+      mask-image:linear-gradient(to right,rgba(0,0,0,.12) 0,#000 34px,#000 calc(100% - 34px),rgba(0,0,0,.12) 100%);
     }
     .quick-chip:hover { border-color:#1677FF; color:#1677FF; background:#f0f4ff; }
     .quick-chip:active { transform:scale(.95); background:#e6f0ff; }
@@ -1216,26 +1239,43 @@
       .msg-chat { display:none; flex-direction:column; height:100%; overflow:hidden; border-radius:0; }
       .msg-show-chat .msg-sidebar { display:none; }
       .msg-show-chat .aisy-bottom-nav { display:none !important; }
-      .msg-show-chat .msg-chat { display:flex; position:fixed; top:0; left:0; right:0; bottom:0; z-index:100; background:#f5f5f5; border-radius:0; }
+      /* iPhone : le panneau est collé au haut de l'écran (top:0) — sans ce
+         padding, l'en-tête passe SOUS l'encoche / la barre d'état. */
+      .msg-show-chat .msg-chat { display:flex; position:fixed; top:0; left:0; right:0; bottom:0; z-index:100; background:#f5f5f5; border-radius:0; padding-top:env(safe-area-inset-top,0px); }
       .chat-header .ch-back { display:flex; }
       .chat-header { padding:10px 12px; }
       .chat-header .ch-avatar { width:38px; height:38px; font-size:15px; }
       .chat-header .ch-name { font-size:14px; }
       .chat-header .ch-action { width:32px; height:32px; font-size:15px; }
-      .msg-messages { padding:10px 12px 90px; gap:6px; }
+      /* 90px de marge bas + 80px reserves par #msgChatContent = ~113px de
+         vide sous le dernier message. 12px suffisent : la barre est deja
+         reservee par #msgChatContent. Côtés = encoche en paysage. */
+      .msg-messages {
+        padding:10px max(12px, env(safe-area-inset-right,12px)) 12px max(12px, env(safe-area-inset-left,12px));
+        gap:6px;
+      }
       .msg-row { max-width:85%; gap:6px; }
       .msg-row .msg-av { width:28px; height:28px; font-size:11px; }
       .msg-row .msg-bubble { font-size:14px; padding:10px 14px; border-radius:16px; }
       .msg-row .msg-sender { font-size:10px; }
       .msg-row .msg-footer { font-size:9px; }
       /* Barre de saisie : TOUJOURS au-dessus de la conversation (z-index 100)
-         et collée au bas de l'ecran (la barre de navigation est masquee). */
-      #chatInputBar { bottom:0; padding:6px 10px; z-index:130; padding-bottom:calc(6px + env(safe-area-inset-bottom,0px)); }
+         et collée au bas de l'ecran (la barre de navigation est masquee).
+         Cotes gauche/droite = encoche en paysage (rien en portrait). */
+      #chatInputBar {
+        bottom:0; z-index:130;
+        padding:6px max(10px, env(safe-area-inset-right,10px)) calc(6px + env(safe-area-inset-bottom,0px)) max(6px, env(safe-area-inset-left,6px));
+      }
       #chatInputBar.ios-keyboard { bottom:0; padding-bottom:6px; }
-      /* Hauteur de la barre reservee : les chips rapides et l'indication
-         restent au-dessus de la zone de saisie, avec un vrai espacement */
-      #msgChatContent { padding-bottom:80px; }
-      .quick-chips { padding:12px 12px 10px; gap:8px; border-top:1px solid #ececec; background:#fff; }
+      /* Hauteur de la barre reservee : 80px + hauteur de l'encoche iPhone
+         (sinon la barre — 84px avec safe-area — mord sur les chips). */
+      #msgChatContent { padding-bottom:calc(80px + env(safe-area-inset-bottom,0px)); }
+      .quick-chips {
+        padding:10px max(12px, env(safe-area-inset-right,12px)) 8px max(12px, env(safe-area-inset-left,12px));
+        gap:6px; border-top:1px solid #ececec; background:#fff;
+      }
+      /* Chips plus serrees : plus de boutons visibles avant defilement */
+      .quick-chip { padding:8px 13px; font-size:12px; }
       .msg-soft-hint { padding:8px 12px 2px; font-size:11px; background:#fff; }
       .chat-input-row { gap:6px; }
       .cib-plus-btn { width:38px; height:38px; font-size:18px; }
@@ -5022,6 +5062,22 @@ function showChatView(conv) {
     <button class="quick-chip" onclick="sendQuickReply('📋 Envoyez-moi un devis proforma')">📋 Devis</button>
     <button class="quick-chip" onclick="sendQuickReply('Appelez-moi s\'il vous plaît')"><i class="fas fa-phone" style="margin-right:5px"></i>Appel</button>`;
 
+  // 7 boutons sur une ligne de 320 a 414px : la ligne défile, et ces
+  // dégradés de bord disent a l'utilisateur qu'il en reste a droite
+  // (sinon les boutons paraissent "couper" et inaccessibles).
+  const majChipsFade = function() {
+    const defilable = chipsArea.scrollWidth > chipsArea.clientWidth + 2;
+    chipsArea.classList.toggle('fade-r', defilable &&
+      chipsArea.scrollLeft + chipsArea.clientWidth < chipsArea.scrollWidth - 2);
+    chipsArea.classList.toggle('fade-l', defilable && chipsArea.scrollLeft > 2);
+  };
+  if (!chipsArea.dataset.fadeInit) {            // un seul abonnement pour tout le site
+    chipsArea.dataset.fadeInit = '1';
+    chipsArea.addEventListener('scroll', majChipsFade, { passive: true });
+    window.addEventListener('resize', majChipsFade);
+  }
+  majChipsFade();
+
   // === MESSAGES ===
   renderMessages(conv);
 }
@@ -5435,6 +5491,18 @@ function msgCallVideo(conv) {
   toast('Appel video bientot disponible');
 }
 
+// Remet la conversation en bas. Appelee apres chaque rendu ET apres le
+// chargement d'une image/video : la hauteur d'un medias n'est connue
+// qu'une fois decode, donc le SEUL scroll suivant le rendu laissait les
+// derniers messages hors ecran (mesure : jusqu'a 197px de trop).
+var msgAutoBasHorloge = 0;
+function msgAutoBas(el) {
+  var a = (el && el.nodeType === 1) ? el : document.getElementById('msgMessagesArea');
+  if (!a) return;
+  if (Date.now() - msgAutoBasHorloge > 6000) return;  // ancienne conv : on ne déplace pas l'utilisateur
+  a.scrollTop = a.scrollHeight;
+}
+
 function renderMessages(conv) {
   const area = document.getElementById('msgMessagesArea');
   area.innerHTML = '';
@@ -5518,13 +5586,13 @@ function renderMessages(conv) {
     } else if (msgType === 'video' || m.video) {
       bubbleHTML = `
         <div class="msg-bubble" style="padding:4px;overflow:hidden">
-          <video controls preload="metadata" src="${escHtml(m.video)}" style="width:100%;max-width:300px;border-radius:14px;display:block"></video>
+          <video controls preload="metadata" src="${escHtml(m.video)}" style="width:100%;max-width:300px;border-radius:14px;display:block" onloadedmetadata="msgAutoBas()"></video>
           ${m.text ? `<div style="padding:8px 10px 4px;font-size:14px">${escHtml(m.text)}</div>` : ''}
         </div>`;
     } else if (msgType === 'image' || m.img) {
       bubbleHTML = `
         <div class="msg-bubble" style="padding:4px;overflow:hidden">
-          <img src="${escHtml(m.img)}" style="width:100%;max-width:300px;border-radius:14px;display:block;cursor:pointer" onclick="safeOpen('${escJs(m.img)}')" onerror="this.outerHTML='<div style=\\'padding:12px;color:#ff3b30\\'>⚠ Image indisponible</div>'">
+          <img src="${escHtml(m.img)}" style="width:100%;max-width:300px;border-radius:14px;display:block;cursor:pointer" onload="msgAutoBas()" onclick="safeOpen('${escJs(m.img)}')" onerror="this.outerHTML='<div style=\\'padding:12px;color:#ff3b30\\'>⚠ Image indisponible</div>'">
           ${m.text && m.text !== '📷 Photo' ? `<div style="padding:8px 10px 4px;font-size:14px">${escHtml(m.text)}</div>` : ''}
         </div>`;
     } else if (msgType === 'location') {
@@ -5583,8 +5651,6 @@ function renderMessages(conv) {
       </div>`;
     area.appendChild(row);
   });
-  area.scrollTop = area.scrollHeight;
-
   // Show evaluate if > 3 messages from seller
   const sellerMsgs = conv.messages.filter(m => m.from === 'seller').length;
   if (sellerMsgs >= 3 && !conv.evaluated) {
@@ -5603,6 +5669,11 @@ function renderMessages(conv) {
       <div style="font-size:11px;color:#999">Évaluez la réactivité du vendeur</div>`;
     area.appendChild(evalDiv);
   }
+  // En bas APRES l'ajout de la carte d'evaluation, et on memorise
+  // l'instant : msgAutoBas remontera encore quand les images seront
+  // decodees (sinon les derniers messages restaient sous la barre).
+  msgAutoBasHorloge = Date.now();
+  area.scrollTop = area.scrollHeight;
 }
 
 function translateSingleMsg(btn, text) {
@@ -6633,11 +6704,28 @@ document.addEventListener('DOMContentLoaded', () => {
     var cibBasSansClavier = function() { return (window.innerWidth <= 767) ? '0px' : '60px'; };
 
     var cibRajuster = function() {
-      if (cib.style.display === 'none') return;   // pas de barre visible → inutile
       var vv = window.visualViewport;
       var h = vv ? vv.height : window.innerHeight;
       if (h > cibHauteurEcran) cibHauteurEcran = h;                 // clavier fermé (rotation, zoom…)
       var clavier = Math.max(0, cibHauteurEcran - h - (vv ? vv.offsetTop : 0));
+      // Le PANNEAU de conversation se raccourcit AUSSI (et pas seulement la
+      // barre) : sinon les derniers messages, les chips rapides et la barre
+      // restaient au fond de l'ecran, donc caches derriere le clavier.
+      // Remis a plat des que le clavier se ferme, meme si la barre est
+      // deja masquee (sinon le panneau restait contracte a la reaparition).
+      var panneau = document.getElementById('msgChatArea');
+      if (panneau) {
+        // Le panneau est fixe avec top:0 + height:100% : forcer "bottom"
+        // serait IGNORE (element fixe surdetermine). On impose donc la
+        // HAUTEUR : le panneau se raccourcit pile au-dessus du clavier,
+        // donc barre, chips et derniers messages restent visibles.
+        if (window.innerWidth <= 767) {
+          panneau.style.height = (clavier > 80) ? ('calc(100% - ' + clavier + 'px)') : '';
+        } else {
+          panneau.style.height = '';          // ordinateur : jamais de hauteur imposée
+        }
+      }
+      if (cib.style.display === 'none') return;   // pas de barre visible → inutile
       if (clavier > 80) {
         cib.classList.add('ios-keyboard');
         cib.style.bottom = clavier + 'px';                          // posée pile au sommet du clavier
@@ -8115,14 +8203,14 @@ async function renderVendeurChatMessages(chatId, snap) {
       </div>`;
     } else if (msgType === 'video' || data.video || (data.type === 'video' && data.fileUrl)) {
       bubble = `<div style="max-width:85%;padding:4px;border-radius:16px;${isMine ? 'background:#2a7de1' : 'background:#f0f2f5'};overflow:hidden">
-        <video controls preload="metadata" src="${escHtml(data.video || data.fileUrl)}" style="width:100%;max-width:280px;border-radius:12px;display:block"></video>
+        <video controls preload="metadata" src="${escHtml(data.video || data.fileUrl)}" style="width:100%;max-width:280px;border-radius:12px;display:block" onloadedmetadata="msgAutoBas(this.closest('#vMsgChatContent'))"></video>
         ${data.text ? `<div style="padding:6px 10px;font-size:13px;${isMine ? 'color:#fff' : 'color:#1a2b3c'}">${escHtml(data.text)}</div>` : ''}
         <div style="font-size:10px;padding:2px 10px 6px;${isMine ? 'color:rgba(255,255,255,0.7)' : 'color:#888'}">${fmtTime(ts)}</div>
       </div>`;
     } else if (msgType === 'image' || data.fileUrl || data.img) {
       const mediaUrl = data.fileUrl || data.img;
       bubble = `<div style="max-width:85%;padding:4px;border-radius:16px;${isMine ? 'background:#2a7de1' : 'background:#f0f2f5'};overflow:hidden">
-        <img src="${escHtml(mediaUrl)}" alt="" style="width:100%;max-width:280px;border-radius:12px;display:block;cursor:pointer" onclick="safeOpen('${escJs(mediaUrl)}')" onerror="this.style.display='none'">
+        <img src="${escHtml(mediaUrl)}" alt="" style="width:100%;max-width:280px;border-radius:12px;display:block;cursor:pointer" onload="msgAutoBas(this.closest('#vMsgChatContent'))" onclick="safeOpen('${escJs(mediaUrl)}')" onerror="this.style.display='none'">
         ${data.text && data.text !== '📷 Photo' ? `<div style="padding:6px 10px;font-size:13px;${isMine ? 'color:#fff' : 'color:#1a2b3c'}">${escHtml(data.text)}</div>` : ''}
         <div style="font-size:10px;padding:2px 10px 6px;${isMine ? 'color:rgba(255,255,255,0.7)' : 'color:#888'}">${fmtTime(ts)}</div>
       </div>`;
@@ -8135,6 +8223,8 @@ async function renderVendeurChatMessages(chatId, snap) {
     div.innerHTML = bubble;
     area.appendChild(div);
   });
+  // En bas, et horloge pour msgAutoBas (medias charges apres le rendu)
+  msgAutoBasHorloge = Date.now();
   area.scrollTop = area.scrollHeight;
 }
 
@@ -10301,7 +10391,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // fois par 24 h : sans verification forcee, l'utilisateur reste bloque sur
 // l'ancienne version. On verifie donc au demarrage, a chaque retour au
 // premier plan et toutes les 60 s — puis on RECHARGE TOUT SEUL.
-var VERSION_APP = 'v18';           // doit correspondre a SW_VERSION dans sw.js
+var VERSION_APP = 'v19';           // doit correspondre a SW_VERSION dans sw.js
 var swReg = null, majEnAttente = false, rechargementFait = false;
 
 function champSaisieActif() {
