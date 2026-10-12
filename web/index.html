@@ -1062,13 +1062,13 @@
     }
     .cib-plus-btn:hover { background:#e8e8e8; transform:rotate(45deg); }
     .cib-input-wrap {
-      flex:1; background:#f5f5f5; border-radius:22px;
+      flex:1; min-width:0; background:#f5f5f5; border-radius:22px;
       display:flex; align-items:flex-end; padding:0 4px;
       border:1.5px solid transparent; transition:border-color .2s;
     }
     .cib-input-wrap:focus-within { border-color:#1677FF; background:#fff; }
     .cib-input-wrap textarea {
-      flex:1; border:none; background:transparent;
+      flex:1; min-width:0; width:100%; border:none; background:transparent;
       padding:10px 14px; font-size:15px; outline:none; resize:none;
       min-height:42px; max-height:80px; font-family:inherit;
       border-radius:22px;
@@ -1232,6 +1232,32 @@
       .cib-plus-btn { width:38px; height:38px; font-size:18px; }
       .cib-send-btn { width:38px; height:38px; font-size:16px; }
       .cib-input-wrap textarea { font-size:16px; padding:8px 12px; min-height:38px; }
+      /* Rappel de connexion : reste DANS la conversation (avant, Envoyer
+         envoyait l'utilisateur sur Profil et son texte semblait perdu) */
+      #msgLoginNag { font-size:12px; padding:8px 12px; }
+    }
+    #msgLoginNag {
+      align-items:center; justify-content:space-between; gap:8px;
+      padding:8px 12px; font-size:12px; font-weight:600; color:#874d00;
+      background:#fff7e6; border-top:1px solid #ffe7ba;
+    }
+    #msgLoginNag button {
+      flex-shrink:0; border:none; border-radius:14px; padding:7px 14px;
+      font-size:12px; font-weight:700; color:#fff; background:#1677FF;
+      cursor:pointer; font-family:inherit;
+    }
+    /* Ecrans etroits (<=400px) : la barre porte 5 boutons + le champ de
+       saisie. Sans resserrement, le bouton Envoyer debordait de l'ecran
+       (mesure reelle : right=414 sur un ecran de 390px → 24px hors ecran,
+       donc le ➤ quasi invisible). Le font-size du champ reste a 16px
+       (sinon iOS zoome automatiquement a la focus). */
+    @media (max-width:400px) {
+      #chatInputBar { padding-left:6px; padding-right:6px; }
+      .chat-input-row { gap:4px; }
+      .cib-plus-btn { width:34px; height:34px; font-size:18px; }
+      .cib-emoji-btn, .cib-gallery-btn, .cib-voice-btn { width:30px; height:30px; font-size:17px; }
+      .cib-send-btn { width:34px; height:34px; font-size:15px; }
+      .cib-input-wrap textarea { padding:8px 10px; }
     }
     @media (min-width:480px) and (max-width:767px) {
       .msg-conv-item .m-preview { max-width:220px; }
@@ -1935,6 +1961,7 @@
           <div class="msg-messages" id="msgMessagesArea"></div>
           <div class="msg-soft-hint" id="msgSoftHint" style="display:none">🔒 Conversation privée — envoyez un texte, une photo 📷 ou un message vocal 🎤</div>
           <div class="quick-chips" id="quickChips" style="display:none"></div>
+          <div id="msgLoginNag" style="display:none"></div>
         </div>
       </div>
     </div>
@@ -2043,7 +2070,7 @@
           <p>📧 <strong>aisymarket@gmail.com</strong><br>📞 <strong>+243983024756</strong></p>
         </div>
         <div class="help-section" style="text-align:center">
-          <p style="font-size:12px;color:#888;margin:0">Version installée : <strong id="appVersion">v16</strong></p>
+          <p style="font-size:12px;color:#888;margin:0">Version installée : <strong id="appVersion">v17</strong></p>
           <button class="aisy-btn aisy-btn-sm aisy-btn-outline" onclick="forcerMiseAJour()" style="font-size:12px;margin-top:8px">🔄 Vérifier les mises à jour</button>
           <button class="aisy-btn aisy-btn-sm" onclick="forcerMiseAJourComplete()" style="font-size:12px;background:#1677FF;color:#fff;margin-top:8px">🚀 Forcer la mise à jour</button>
         </div>
@@ -4914,6 +4941,8 @@ function showChatView(conv) {
   content.style.display = 'flex';
   const softHint = document.getElementById('msgSoftHint');
   if (softHint) softHint.style.display = 'flex';
+  const nagLogin = document.getElementById('msgLoginNag');
+  if (nagLogin) nagLogin.style.display = 'none';   // réapparaît au prochain envoi sans session
 
   var sellerProducts = (allProducts.length ? allProducts : LOCAL).filter(p => p.seller_name === conv.name || p.seller === conv.name).slice(0, 5);
   var orderCount = conv.orderCount || Math.floor(Math.random() * 20) + 1;
@@ -5884,10 +5913,13 @@ function sendMsg() {
   const conv = msgConvs.find(c => c.id === msgCurrentId);
   if (!conv) return;
   // Sans session Firebase le message ne part JAMAIS vers le vendeur
-  // (silencieusement perdu) : on demande la connexion au lieu de faire croire à un envoi.
+  // (silencieusement perdu). On reste DANS la conversation : le texte est
+  // conserve dans le champ et un bandeau propose la connexion (avant,
+  // l'utilisateur était renvoyé sur Profil → « mon message a disparu »).
   if (!fbAuth.currentUser) {
     contactEnAttente = null;
-    ouvrirFormulaireConnexion('Reconnectez-vous pour envoyer vos messages au vendeur');
+    afficherRappelConnexion();
+    toast('Connectez-vous pour envoyer ce message (votre texte est conservé)', 'error', 4000);
     return;
   }
   input.value = '';
@@ -6357,6 +6389,20 @@ function attendreSessionFirebase(delaiMs) {
 }
 
 // Ouvre le formulaire de CONNEXION (jamais l'écran « Créer un compte »)
+// Bandeau « connectez-vous » affiché DANS la conversation : l'utilisateur
+// garde son texte et reste sur son échange (l'ancien comportement le
+// renvoyait sur Profil, d'où l'impression que le message avait disparu).
+function afficherRappelConnexion() {
+  var nag = document.getElementById('msgLoginNag');
+  if (!nag) {   // element absent : comportement historique conserve
+    ouvrirFormulaireConnexion('Reconnectez-vous pour envoyer vos messages au vendeur');
+    return;
+  }
+  nag.innerHTML = '<span>🔐 Connectez-vous pour envoyer votre message.</span>' +
+    '<button type="button" onclick="ouvrirFormulaireConnexion(\'Reconnectez-vous pour envoyer vos messages au vendeur\')">Se connecter</button>';
+  nag.style.display = 'flex';
+}
+
 function ouvrirFormulaireConnexion(message) {
   showSection('auth');
   try { switchAuthTab('client'); } catch (e) { authMode = 'client'; }
@@ -7857,7 +7903,7 @@ function showVendeurMessages() {
       </div>
       <div id="vMsgChatContent" style="max-height:400px;overflow-y:auto;padding:8px 0"></div>
       <div style="display:flex;gap:6px;padding:10px 0">
-        <input id="vMsgInput" class="aisy-input" placeholder="Votre réponse..." style="flex:1;margin:0" onkeydown="if(event.key==='Enter')sendVendeurMsg()">
+        <input id="vMsgInput" class="aisy-input" placeholder="Votre réponse..." style="flex:1;min-width:0;margin:0" onkeydown="if(event.key==='Enter')sendVendeurMsg()">
         <button class="aisy-btn" onclick="sendVendeurMsg()" style="padding:10px 16px">➤</button>
       </div>
     </div>`;
@@ -10191,7 +10237,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // fois par 24 h : sans verification forcee, l'utilisateur reste bloque sur
 // l'ancienne version. On verifie donc au demarrage, a chaque retour au
 // premier plan et toutes les 60 s — puis on RECHARGE TOUT SEUL.
-var VERSION_APP = 'v16';           // doit correspondre a SW_VERSION dans sw.js
+var VERSION_APP = 'v17';           // doit correspondre a SW_VERSION dans sw.js
 var swReg = null, majEnAttente = false, rechargementFait = false;
 
 function champSaisieActif() {

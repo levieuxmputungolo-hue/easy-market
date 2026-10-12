@@ -1,8 +1,8 @@
 // Version du cache : A CHAQUE MISE EN JOUR, incrementer (v14, v15, ...).
 // Au 'activate', tous les anciens caches sont supprimes → le telephone
 // ne peut plus servir une version anterieure de l'application.
-const CACHE_NAME = 'easymarket-v16';
-const SW_VERSION = 'v16';
+const CACHE_NAME = 'easymarket-v17';
+const SW_VERSION = 'v17';
 const STATIC_ASSETS = [
   '/manifest.json',
   '/assets/logo.svg',
