@@ -48,10 +48,10 @@ class DetailScreen extends StatelessWidget {
                   Row(
                     children: [
                       const Icon(Icons.star, color: Color(0xFFFF6A00), size: 16),
-                      Text(' ${product.rating}', style: const TextStyle(color: Colors.grey.shade700)),
+                      Text(' ${product.rating}', style: TextStyle(color: Colors.grey.shade700)),
                       const SizedBox(width: 16),
                       const Icon(Icons.inventory, color: Colors.grey, size: 16),
-                      Text(' Stock: ${product.stock > 0 ? product.stock : "✓"}', style: const TextStyle(color: Colors.grey.shade700)),
+                      Text(' Stock: ${product.stock > 0 ? product.stock : "✓"}', style: TextStyle(color: Colors.grey.shade700)),
                     ],
                   ),
                   if (product.description.isNotEmpty) ...[

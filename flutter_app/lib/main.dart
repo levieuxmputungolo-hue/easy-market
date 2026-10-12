@@ -12,6 +12,7 @@ import 'package:intl/intl.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'screens/alibaba_chat_screen.dart';
+import 'screens/chat_screen.dart';
 import 'services/api_service.dart';
 
 // FCM background handler
@@ -2113,6 +2114,18 @@ class _MessagesTabState extends State<MessagesTab> {
                     final ts = data['lastMessageTime'] as Timestamp?;
                     final time = ts != null ? DateFormat('HH:mm').format(ts.toDate()) : '';
 
+                    // Destinataire de la conversation : si je suis le vendeur
+                    // de ce chat, mon interlocuteur est l'acheteur.
+                    final isSellerView = sellerId == _user!.uid;
+                    final recipientName = isSellerView
+                        ? (data['buyer_name'] ?? 'Client')
+                        : sellerName;
+                    final recipientId =
+                        isSellerView ? (data['buyer_id'] ?? '') : sellerId;
+                    final recipientAvatar = isSellerView
+                        ? (data['buyer_avatar'] ?? '')
+                        : (data['seller_avatar'] ?? '');
+
                     return ListTile(
                       leading: CircleAvatar(
                         backgroundColor: const Color(0xFF1677FF).withOpacity( 0.1),
@@ -2135,6 +2148,28 @@ class _MessagesTabState extends State<MessagesTab> {
                           const SizedBox(height: 2),
                           Text(lastMsg, style: const TextStyle(fontSize: 12, color: Colors.grey), maxLines: 1, overflow: TextOverflow.ellipsis),
                         ],
+                      ),
+                      // Accès à la NOUVELLE messagerie à côté de l'écran
+                      // AlibabaChatScreen : toucher la ligne ouvre l'ancien
+                      // écran (comportement inchangé), cette icône ouvre ChatScreen.
+                      trailing: IconButton(
+                        icon: const Icon(Icons.forum_outlined,
+                            color: Color(0xFF1677FF), size: 22),
+                        tooltip: 'Ouvrir avec la nouvelle messagerie',
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ChatScreen(
+                                chatId: chatId,
+                                currentUserId: _user!.uid,
+                                recipientName: recipientName,
+                                recipientAvatar: recipientAvatar,
+                                recipientId: recipientId,
+                              ),
+                            ),
+                          );
+                        },
                       ),
                       onTap: () {
                         Navigator.push(context, MaterialPageRoute(builder: (_) => AlibabaChatScreen(
