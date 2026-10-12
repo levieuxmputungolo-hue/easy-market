@@ -2043,7 +2043,7 @@
           <p>📧 <strong>aisymarket@gmail.com</strong><br>📞 <strong>+243983024756</strong></p>
         </div>
         <div class="help-section" style="text-align:center">
-          <p style="font-size:12px;color:#888;margin:0">Version installée : <strong id="appVersion">v15</strong></p>
+          <p style="font-size:12px;color:#888;margin:0">Version installée : <strong id="appVersion">v16</strong></p>
           <button class="aisy-btn aisy-btn-sm aisy-btn-outline" onclick="forcerMiseAJour()" style="font-size:12px;margin-top:8px">🔄 Vérifier les mises à jour</button>
           <button class="aisy-btn aisy-btn-sm" onclick="forcerMiseAJourComplete()" style="font-size:12px;background:#1677FF;color:#fff;margin-top:8px">🚀 Forcer la mise à jour</button>
         </div>
@@ -10191,7 +10191,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // fois par 24 h : sans verification forcee, l'utilisateur reste bloque sur
 // l'ancienne version. On verifie donc au demarrage, a chaque retour au
 // premier plan et toutes les 60 s — puis on RECHARGE TOUT SEUL.
-var VERSION_APP = 'v15';           // doit correspondre a SW_VERSION dans sw.js
+var VERSION_APP = 'v16';           // doit correspondre a SW_VERSION dans sw.js
 var swReg = null, majEnAttente = false, rechargementFait = false;
 
 function champSaisieActif() {
@@ -10230,8 +10230,37 @@ function afficherBanniereMaj() {
   document.body.appendChild(b);
 }
 function verifierMiseAJour() {
-  if (!swReg) return;
-  try { var p = swReg.update(); if (p && p.catch) p.catch(function() {}); } catch (err) {}
+  if (swReg) {
+    try { var p = swReg.update(); if (p && p.catch) p.catch(function() {}); } catch (err) {}
+  }
+  verifierVersionServeur();
+}
+// ── Sonde de version : le juge de paix ──
+// Chemin INDEPENDANT du service worker : on demande au serveur sa version et
+// on la compare a celle de la page affichee. Meme si le service worker est
+// bloque, ou si le telephone ressort une page restee dans son cache HTTP,
+// une difference declenche un rechargement force.
+function verifierVersionServeur() {
+  if (rechargementFait) return;
+  try {
+    fetch('/version.json?x=' + Date.now(), { cache: 'no-store' })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (!d || !d.version) return;
+        if (d.version === VERSION_APP) {
+          try { sessionStorage.removeItem('aisy_maj_v' + VERSION_APP); } catch (e) {}
+          return;
+        }
+        // Une seule tentative par version : si le rechargement n'a rien change
+        // (fichiers desynchronises), on evite une boucle de rechargements.
+        try {
+          if (sessionStorage.getItem('aisy_maj_v' + VERSION_APP)) return;
+          sessionStorage.setItem('aisy_maj_v' + VERSION_APP, '1');
+        } catch (e) {}
+        signalerMiseAJourPrete();
+      })
+      .catch(function() {});
+  } catch (err) {}
 }
 function suivreInstallation(sw) {
   if (!sw) return;
@@ -10242,7 +10271,9 @@ function suivreInstallation(sw) {
 }
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js').then(function(reg) {
+  // updateViaCache:'none' → le navigateur ne doit JAMAIS utiliser son cache
+  // HTTP pour verifier le service worker (regle androidienne trompeuse).
+  navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then(function(reg) {
     swReg = reg;
     suivreInstallation(reg.installing);
     reg.addEventListener('updatefound', function() { suivreInstallation(reg.installing); });
@@ -10252,6 +10283,7 @@ if ('serviceWorker' in navigator) {
     // ── VERIFICATIONS FORCEES ──
     setTimeout(verifierMiseAJour, 3000);
     setTimeout(verifierMiseAJour, 30000);
+    setTimeout(verifierVersionServeur, 10000);
     setInterval(verifierMiseAJour, 60000);
 
     // Retour au premier plan (app relancee depuis l'ecran d'accueil)
@@ -10263,6 +10295,15 @@ if ('serviceWorker' in navigator) {
       }
     });
     window.addEventListener('focus', verifierMiseAJour);
+    // Page restauree depuis le cache avant/apres (bfcache) : AUCUNE verification
+    // de mise a jour ne se declenche naturellement — c'est un cas classique ou
+    // le telephone reste sur une ancienne version sans jamais se recharger.
+    window.addEventListener('pageshow', function(e) {
+      if (e.persisted) {
+        setTimeout(verifierMiseAJour, 500);
+        setTimeout(verifierVersionServeur, 1500);
+      }
+    });
     // Fin d'une saisie : la mise a jour peut enfin s'appliquer
     document.addEventListener('focusout', function() {
       setTimeout(function() { if (majEnAttente && !champSaisieActif()) rechargerMaintenant(); }, 400);

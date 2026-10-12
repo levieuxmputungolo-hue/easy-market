@@ -29,10 +29,23 @@
       {
         "source": "/sw.js",
         "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store" }]
+      },
+      {
+        "source": "/version.json",
+        "headers": [{ "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate" }]
+      },
+      {
+        "source": "/index.html",
+        "headers": [{ "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate" }]
+      },
+      {
+        "source": "/",
+        "headers": [{ "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate" }]
       }
     ],
     "rewrites": [
       {"source": "/manifest.json", "destination": "/manifest.json"},
+      {"source": "/version.json", "destination": "/version.json"},
       {"source": "/sw.js", "destination": "/sw.js"},
       {"source": "/assets/**", "destination": "/assets/**"},
       {"source": "/publicitaire*", "destination": "/publicitaire/index.html"},

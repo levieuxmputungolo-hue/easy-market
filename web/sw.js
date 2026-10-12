@@ -1,8 +1,8 @@
 // Version du cache : A CHAQUE MISE EN JOUR, incrementer (v14, v15, ...).
 // Au 'activate', tous les anciens caches sont supprimes → le telephone
 // ne peut plus servir une version anterieure de l'application.
-const CACHE_NAME = 'easymarket-v15';
-const SW_VERSION = 'v15';
+const CACHE_NAME = 'easymarket-v16';
+const SW_VERSION = 'v16';
 const STATIC_ASSETS = [
   '/manifest.json',
   '/assets/logo.svg',
@@ -65,6 +65,19 @@ self.addEventListener('fetch', function(e) {
         return caches.match('/index.html');
       })
     );
+    return;
+  }
+
+  // Sonde de version — TOUJOURS le reseau, JAMAIS le cache.
+  // C'est le juge de paix : meme si le service worker ou le cache HTTP du
+  // telephone sont bloques sur une ancienne version, cette reponse est
+  // fraiche et permet a la page de se recharger toute seule.
+  if (url.indexOf('/version.json') > -1) {
+    e.respondWith(fetch(e.request, { cache: 'no-store' }).catch(function() {
+      return new Response('{"version":"indisponible"}', {
+        status: 503, headers: { 'Content-Type': 'application/json' }
+      });
+    }));
     return;
   }
 
