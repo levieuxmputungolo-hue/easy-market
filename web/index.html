@@ -4709,8 +4709,14 @@ function demanderPermNotif(){
 }
 
 function appelPaire(){
+  // STUN (découverte) + TURN Open Relay (relais) : sans TURN, un appel entre deux
+  // réseaux mobiles (NAT/CGNAT) ne se connecte pas — d'où « l'appel ne passe pas ».
   var pc = new RTCPeerConnection({
-    iceServers: [ { urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' } ]
+    iceServers: [
+      { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+      { urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turn:openrelay.metered.ca:443?transport=tcp'],
+        username: 'openrelayproject', credential: 'openrelayproject' }
+    ]
   });
   pc.onicecandidate = function(e){
     if (!e.candidate || !appelEtat.callId) return;
@@ -4972,7 +4978,16 @@ function demarrerAppelProduit(type){
   if (!p) { toast('Produit introuvable', 'error'); return; }
   var uid = p.seller_id || p.vendeur_id || '';
   if (uid && uid !== appelUid() && !/^local/i.test(String(uid))) { demarrerAppel(uid, p.seller_name || 'Vendeur', type || 'audio'); return; }
-  if (p.phone) { window.open('tel:' + p.phone); return; }
+  // Jamais de composeur téléphone automatique : l'appel reste dans l'application.
+  // Le vendeur hors-ligne n'est joignable que si l'utilisateur CONFIRME l'appel GSM.
+  if (p.phone) {
+    if (confirm('📞 ' + (p.seller_name || 'Ce vendeur') + ' n\'est pas joignable dans l\'application.\nAppeler son numéro ' + p.phone + ' ?')) {
+      window.open('tel:' + p.phone);
+    } else {
+      toast('Appel dans l\'application indisponible pour ce vendeur', 'error', 3000);
+    }
+    return;
+  }
   toast('Ce vendeur n\'est pas joignable dans l\'application', 'error', 3200);
 }
 // Sécurité : raccrocher en quittant la page pendant un appel
@@ -10391,7 +10406,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // fois par 24 h : sans verification forcee, l'utilisateur reste bloque sur
 // l'ancienne version. On verifie donc au demarrage, a chaque retour au
 // premier plan et toutes les 60 s — puis on RECHARGE TOUT SEUL.
-var VERSION_APP = 'v19';           // doit correspondre a SW_VERSION dans sw.js
+var VERSION_APP = 'v20';           // doit correspondre a SW_VERSION dans sw.js
 var swReg = null, majEnAttente = false, rechargementFait = false;
 
 function champSaisieActif() {
